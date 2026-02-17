@@ -6,6 +6,8 @@ use std::io::{stdin, stdout, Write};
 
 use std::path::{PathBuf, Path};
 
+use thiserror::Error;
+
 use walkdir::WalkDir;
 
 use zip::ZipArchive;
@@ -18,15 +20,28 @@ use crate::data_saving::{Mod, ModType};
 /*   UTILITIES   */
 /* ------------- */
 
-#[derive(Error)]
-enum InstallationError {
+#[derive(Error, Debug)]
+pub enum InstallationError {
+    #[error("Failed to access file: {0}")]
     FileAcessingError(String),
+
+    #[error("Could not read file extension")]
     ExtensionReadingError,
+
+    #[error("Could not read filename")]
     FilenameReadingError,
+
+    #[error("Failed to decompress folder")]
     FolderDecompressionError,
+
+    #[error("Failed to access the console")]
     ConsoleAccessingError,
-    CopyingFilesError
+
+    #[error("Error occurred while copying files")]
+    CopyingFilesError,
 }
+
+
 
 pub fn check_mod_type(mod_folder_path: &mut PathBuf) -> Result<Option<(ModType, PathBuf)>, Box<dyn Error>> {
     // Define variables that will be returned
