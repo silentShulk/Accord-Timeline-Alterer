@@ -2,8 +2,6 @@ use std::error::Error;
 
 use clap::Parser;
 
-use clearscreen::clear;
-
 mod data_saving;
 use data_saving::{Config, Mod};
 
@@ -140,7 +138,7 @@ fn main() {
                 std::process::exit(1);
             });
 
-        	let installed_mod = install_mod(&current_config.game_path, answered_path).unwrap_or_else(|er| {
+        	let installed_mod = install_mod(&current_config.game_path, &answered_path).unwrap_or_else(|er| {
              	eprintln!("There was a problem installing the mod. {}", er);
                	std::process::exit(1);
             });

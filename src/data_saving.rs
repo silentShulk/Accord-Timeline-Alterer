@@ -6,7 +6,7 @@ use std::fs::{File, create_dir_all};
 
 use std::env::var;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use serde::{Serialize, Deserialize};
 
@@ -75,12 +75,12 @@ impl Config {
         else {
             println!("Config file (~/.config/ATA/data.json) not found, creating it with default values...\n");
 
-            Self::create_default_config_file(data_file_path)
+            Self::create_default_config_file(&data_file_path)
         }   
     }
 
     // creates a default config and saves it to the file
-    fn create_default_config_file(path: PathBuf) -> Result<Self, Box<dyn Error>> {
+    fn create_default_config_file(path: &Path) -> Result<Self, Box<dyn Error>> {
         let default_config = Self::default();
         
         if let Some(data_file_folder) = path.parent() {

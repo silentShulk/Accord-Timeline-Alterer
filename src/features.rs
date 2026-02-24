@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::data_saving::{Mod, ModType};
 
@@ -17,7 +17,7 @@ use crate::installation_utilities_and_methods::{
 /*   MOD INSTALLATION   */
 /* -------------------- */
 
-pub fn install_mod(game_path: &PathBuf, compressed_mod_folder_path: PathBuf) -> Result<Mod, Box<dyn Error>> {
+pub fn install_mod(game_path: &Path, compressed_mod_folder_path: &Path) -> Result<Mod, Box<dyn Error>> {
     // Check if it exists
     if !compressed_mod_folder_path.exists() {
         return Err("Mod path does not exist".into());
@@ -31,12 +31,12 @@ pub fn install_mod(game_path: &PathBuf, compressed_mod_folder_path: PathBuf) -> 
        	.ok_or("The given path doesn't contain a mod")?;
     // Install the mod contained in the folder following the correct installation method
     let installed_mod = match mod_data.0 {
-       	ModType::Textures => install_texture(mod_folder_path, game_path)?,
-       	ModType::PlayerModels => install_player_model(mod_folder_path, game_path)?,
-       	ModType::WeaponModels => install_weapon_model(mod_folder_path, game_path)?,
-       	ModType::WorldModels => install_world_model(mod_folder_path, game_path)?,
-        ModType::CutsceneReplacements => install_cutscene_replacements(mod_folder_path, game_path)?,
-        ModType::ReshadePreset => install_reshade_preset(mod_folder_path, game_path)?,
+       	ModType::Textures => install_texture(&mod_folder_path, &game_path)?,
+       	ModType::PlayerModels => install_player_model(&mod_folder_path, &game_path)?,
+       	ModType::WeaponModels => install_weapon_model(&mod_folder_path, &game_path)?,
+       	ModType::WorldModels => install_world_model(&mod_folder_path, &game_path)?,
+        ModType::CutsceneReplacements => install_cutscene_replacements(&mod_folder_path, &game_path)?,
+        ModType::ReshadePreset => install_reshade_preset(&mod_folder_path, &game_path)?,
     };
     
     Ok(installed_mod)
@@ -48,7 +48,7 @@ pub fn install_mod(game_path: &PathBuf, compressed_mod_folder_path: PathBuf) -> 
 /*   MOD UNINSTALLATION   */
 /* ---------------------- */
 
-pub fn uninstall_mod(game_path: &PathBuf) -> Result<Mod, Box<dyn std::error::Error>> {
+pub fn uninstall_mod(game_path: &Path) -> Result<Mod, Box<dyn std::error::Error>> {
 	Ok(Mod::new(String::from("Texture"), vec![], true, ModType::Textures))
 }
 

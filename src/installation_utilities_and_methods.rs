@@ -1,6 +1,4 @@
-use std::error::Error;
-
-use std::fs::{copy, read_dir, File};
+use std::fs::{copy, read_dir};
 
 use std::io::{stdin, stdout, Write};
 
@@ -22,41 +20,63 @@ use crate::data_saving::{Mod, ModType};
 
 #[derive(Error, Debug)]
 pub enum InstallationError {
-    #[error("Failed to access file: {0}")]
-    FileAcessingError(String),
+    #[error("The received compressed folder uses an unsupported extension")]
+    UnsupportedCompressionError(String),
 
-    #[error("Could not read file extension")]
-    ExtensionReadingError,
+    #[error("Couldn't read an enty inside a folder")]
+    EntryReadingError(#[from] walkdir::Error),
 
-    #[error("Could not read filename")]
-    FilenameReadingError,
+    #[error("Found an extensionless file, it will be skipped")]
+    ExtensionlessFileError(PathBuf),
 
-    #[error("Failed to decompress folder")]
-    FolderDecompressionError,
+    #[error("Found a file with an extension containing invalid UTF-8")]
+    InvalidExtensionError(PathBuf),
 
-    #[error("Failed to access the console")]
-    ConsoleAccessingError,
+    #[error("Found a file with an extension containing invalid UTF-8")]
+    ConsoleInteractionError(#[from] std::io::Error)
+}
 
-    #[error("Error occurred while copying files")]
-    CopyingFilesError,
+
+pub fn decompress_folder(zipped_mod_folder: &Path) -> Result<PathBuf, InstallationError> {
+    let mut decompressed_mod_folder = PathBuf::new();
+
+    let extension = get_file_extension(zipped_mod_folder)?;
+    match extension {
+        ".zip" => decompressed_mod_folder = decompress_zip()?,
+        ".rar" => decompressed_mod_folder = decompress_rar()?,
+        ".7z" => decompressed_mod_folder = decompress_7z()?,
+        _ => ()
+    }
+
+    Ok(PathBuf::new())
+}
+
+fn decompress_zip() -> Result<PathBuf, InstallationError> {
+    Ok(PathBuf::new())
+}
+fn decompress_7z() -> Result<PathBuf, InstallationError> {
+    Ok(PathBuf::new())
+}
+fn decompress_rar() -> Result<PathBuf, InstallationError> {
+    Ok(PathBuf::new())
 }
 
 
 
-pub fn check_mod_type(mod_folder_path: &mut PathBuf) -> Result<Option<(ModType, PathBuf)>, Box<dyn Error>> {
+pub fn check_mod_type(mod_folder_path: &mut Path) -> Result<Option<(ModType, PathBuf)>, InstallationError> {
     // Define variables that will be returned
     let mut mod_files_path: Option<PathBuf> = None;
     let mut mod_contained: Option<ModType> = None;
-    
+
     // Start looking at the contents of mod folder
     for entry in WalkDir::new(&mod_folder_path) {
         let current_entry = entry?;
         let entry_path = current_entry.path();
-        
+
         // Skip folders
         if !current_entry.file_type().is_file() {
            	continue
-        }         
+        }
         // Get current entry file extension
         let extension = match get_file_extension(entry_path) {
             Ok(ext) => ext,
@@ -95,34 +115,18 @@ pub fn check_mod_type(mod_folder_path: &mut PathBuf) -> Result<Option<(ModType, 
             break;
         }
     }
-    
+
     Ok(mod_contained.zip(mod_files_path))
 }
-    
-pub fn decompress_folder(zipped_mod_folder: &PathBuf) -> Result<PathBuf, Box<dyn Error>> {
-    let mod_file = File::open(zipped_mod_folder)?;
 
-    Ok(PathBuf::new())
-}
-
-fn decompress_zip() {
-
-}
-fn decompress_7z() {
-
-}
-fn decompress_rar() {
-
-}
-
-fn get_file_extension(path: &Path) -> Result<&str, String> {
+fn get_file_extension(path: &Path) -> Result<&str, InstallationError> {
     let Some(extension) = path.extension() else {
-        return Err(String::from(format!("{:?} is an extensionless file", path)));
+        return Err(InstallationError::ExtensionlessFileError(path.to_path_buf()));
     };
     let Some(extension_str) = extension.to_str() else {
-       	return Err(String::from(format!("{:?} contains invalid UTF-8 in its extension", path)));
+       	return Err(InstallationError::InvalidExtensionError(path.to_path_buf()));
     };
-    
+
     Ok(extension_str)
 }
 
@@ -132,7 +136,7 @@ fn get_file_extension(path: &Path) -> Result<&str, String> {
 /*   INSTALLATION METHODS   */
 /* ------------------------ */
 
-pub fn install_texture(dss_folder_path: PathBuf, game_path: &PathBuf) -> Result<Mod, Box<dyn Error>> {
+pub fn install_texture(dss_folder_path: &Path, game_path: &Path) -> Result<Mod, InstallationError> {
     let answer = ask_mod_name()?;
 
     let texture_mods_folder = game_path.join("/SK_Res/inject/textures");
@@ -155,7 +159,7 @@ pub fn install_texture(dss_folder_path: PathBuf, game_path: &PathBuf) -> Result<
     ))
 }
 
-pub fn install_player_model(dtt_dat_folder_path: PathBuf, game_path: &PathBuf) -> Result<Mod, Box<dyn std::error::Error>>  {
+pub fn install_player_model(dtt_dat_folder_path: &Path, game_path: &Path) -> Result<Mod, InstallationError>  {
     let answer = ask_mod_name()?;
 
     let pl_mods_folder = game_path.join("/data/pl");
@@ -178,7 +182,7 @@ pub fn install_player_model(dtt_dat_folder_path: PathBuf, game_path: &PathBuf) -
     ))
 }
 
-pub fn install_weapon_model(dtt_dat_folder_path: PathBuf, game_path: &PathBuf) -> Result<Mod, Box<dyn std::error::Error>> {
+pub fn install_weapon_model(dtt_dat_folder_path: &Path, game_path: &Path) -> Result<Mod, InstallationError> {
     let answer = ask_mod_name()?;
 
     let wp_mods_folder = game_path.join("/data/wp");
@@ -201,7 +205,7 @@ pub fn install_weapon_model(dtt_dat_folder_path: PathBuf, game_path: &PathBuf) -
     ))
 }
 
-pub fn install_world_model(dtt_dat_folder_path: PathBuf, game_path: &PathBuf) -> Result<Mod, Box<dyn std::error::Error>> {
+pub fn install_world_model(dtt_dat_folder_path: &Path, game_path: &Path) -> Result<Mod, InstallationError> {
     let answer = ask_mod_name()?;
 
     let bg_mods_folder = game_path.join("/data/bg");
@@ -224,9 +228,9 @@ pub fn install_world_model(dtt_dat_folder_path: PathBuf, game_path: &PathBuf) ->
     ))
 }
 
-pub fn install_cutscene_replacements(usm_folder_path: PathBuf, game_path: &PathBuf) -> Result<Mod, Box<dyn std::error::Error>> {
+pub fn install_cutscene_replacements(usm_folder_path: &Path, game_path: &Path) -> Result<Mod, InstallationError> {
     let answer = ask_mod_name()?;
-    
+
     let cutscene_mods_folder = game_path.join("/data/movie");
 
     let mut mod_files: Vec<PathBuf> = vec![];
@@ -247,17 +251,13 @@ pub fn install_cutscene_replacements(usm_folder_path: PathBuf, game_path: &PathB
     ))
 }
 
-pub fn install_reshade_preset(preset_folder_path: PathBuf, game_path: &PathBuf) -> Result<Mod, Box<dyn std::error::Error>> {
+pub fn install_reshade_preset(preset_folder_path: &Path, game_path: &Path) -> Result<Mod, InstallationError> {
 	Ok(Mod::new(String::from("Texture"), vec![], true, ModType::Textures))
 }
 
 
 
-/* -------------------------- */
-/*   INSTALLATION FUNCTIONS   */
-/* -------------------------- */
-
-fn ask_mod_name() -> Result<String, std::io::Error> {
+fn ask_mod_name() -> Result<String, InstallationError> {
 	println!("Insert name of the mod that you are installing (choose anything you want, will be used as identifier)");
 	print!("Name: ");
 	stdout().flush()?;
