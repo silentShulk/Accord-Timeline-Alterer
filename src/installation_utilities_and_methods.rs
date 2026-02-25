@@ -1,4 +1,4 @@
-use std::fs::{copy, read_dir};
+use std::fs::{copy, read_dir, File};
 
 use std::io::{stdin, stdout, Write};
 
@@ -22,42 +22,47 @@ use crate::data_saving::{Mod, ModType};
 pub enum InstallationError {
     #[error("The received compressed folder uses an unsupported extension")]
     UnsupportedCompressionError(String),
+    
+    #[error("Couldn't extract a compressed folder: {0}")]
+    FailedExtractionError(#[from] zip::result::ZipError),
 
-    #[error("Couldn't read an enty inside a folder")]
+    #[error("Couldn't read an entry inside a folder")]
     EntryReadingError(#[from] walkdir::Error),
 
     #[error("Found an extensionless file, it will be skipped")]
     ExtensionlessFileError(PathBuf),
 
-    #[error("Found a file with an extension containing invalid UTF-8")]
+    #[error("Found a file with an extension containing invalid UTF-8, it will be skipped")]
     InvalidExtensionError(PathBuf),
 
-    #[error("Found a file with an extension containing invalid UTF-8")]
-    ConsoleInteractionError(#[from] std::io::Error)
+    #[error("Encountered an error while trying to read/write the console")]
+    ConsoleInteractionError(#[from] std::io::Error),
 }
 
 
-pub fn decompress_folder(zipped_mod_folder: &Path) -> Result<PathBuf, InstallationError> {
-    let mut decompressed_mod_folder = PathBuf::new();
-
-    let extension = get_file_extension(zipped_mod_folder)?;
+pub fn decompress_folder(compressed_mod_folder: &Path) -> Result<PathBuf, InstallationError> {
+    let extension = get_file_extension(compressed_mod_folder)?;
+    
     match extension {
-        ".zip" => decompressed_mod_folder = decompress_zip()?,
-        ".rar" => decompressed_mod_folder = decompress_rar()?,
-        ".7z" => decompressed_mod_folder = decompress_7z()?,
-        _ => ()
+        ".zip" => Ok(decompress_zip(compressed_mod_folder)?),
+        ".rar" => Ok(decompress_rar(compressed_mod_folder)?),
+        ".7z" => Ok(decompress_7z(compressed_mod_folder)?),
+        _ => Err(InstallationError::UnsupportedCompressionError(extension.to_string()))
     }
-
-    Ok(PathBuf::new())
 }
 
-fn decompress_zip() -> Result<PathBuf, InstallationError> {
+fn decompress_zip(zipped_mod_folder: &Path) -> Result<PathBuf, InstallationError> {
+    let zip_file = File::open(zipped_mod_folder)?;
+    let zip_archive = ZipArchive::new(zip_file)?;
+    
+    
+    
     Ok(PathBuf::new())
 }
-fn decompress_7z() -> Result<PathBuf, InstallationError> {
+fn decompress_7z(sevzipped_mod_folder: &Path) -> Result<PathBuf, InstallationError> {
     Ok(PathBuf::new())
 }
-fn decompress_rar() -> Result<PathBuf, InstallationError> {
+fn decompress_rar(rared_mod_folder: &Path) -> Result<PathBuf, InstallationError> {
     Ok(PathBuf::new())
 }
 
