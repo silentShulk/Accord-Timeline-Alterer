@@ -1,7 +1,5 @@
 use std::fs::{copy, read_dir, File};
 
-use std::io::{stdin, stdout, Write};
-
 use std::path::{PathBuf, Path};
 
 use thiserror::Error;
@@ -9,6 +7,10 @@ use thiserror::Error;
 use walkdir::WalkDir;
 
 use zip::ZipArchive;
+
+use sevenz_rust::decompress_file;
+
+use unrar::Archive;
 
 use crate::data_saving::{Mod, ModType};
 
@@ -26,58 +28,123 @@ pub enum InstallationError {
     #[error("{0} is an an extensionless file, it will be skipped")]
     ExtensionlessFileError(PathBuf),
 
-    #[error("Found a file with an extension containing invalid UTF-8, it will be skipped")]
+    #[error("{0} has an extension containing invalid UTF-8, it will be skipped")]
     InvalidExtensionError(PathBuf),
     
     // Decompression
-    #[error("The received compressed folder uses an unsupported extension")]
+    #[error("The received compressed folder ({0}) uses an unsupported extension")]
     UnsupportedCompressionError(String),
     
-    #[error("Couldn't access a file")]
-    FileAccessingError,
+    #[error("Couldn't access a {0}")]
+    FileAccessingError(PathBuf),
     
-    #[error("Couldn't extract a compressed folder: {0}")]
-    FailedExtractionError(),
+    #[error("Couldn't extract zip archive. {0}")]
+    FailedZipExtractionError(#[from] zip::result::ZipError),
+    
+    #[error("Compressed archive ({0}) doesn't have a parent directory")]
+    ParentlessArchiveError(PathBuf),
+    
+    #[error("The compressed archive ({0}) doesn't have a name")]
+    NamelessArchiveError(PathBuf),
+       
+    #[error("Couldn't extract 7z archive. {0}")]
+    Failed7zExtractionError(#[from] sevenz_rust::Error),
+    
+    #[error("Couldn't extract rar archive. {0}")]
+    FailedRarExtractionError(#[from] unrar::error::UnrarError),
 
     // Directory Reading Errors
-    #[error("Couldn't find or read completely a directory")]
-    DirectoryReadingError,
+    #[error("Couldn't find or read completely {0}")]
+    DirectoryReadingError(PathBuf),
     
-    #[error("Couldn't read an entry inside a folder")]
-    EntryReadingError(),
+    #[error("Couldn't read an entry inside {0}")]
+    EntryReadingError(#[from] walkdir::Error),
     
-    #[error("Couldn't copy file")]
-    FileCopyingError,
+    #[error("Couldn't copy {0} to {1}")]
+    FileCopyingError(PathBuf, PathBuf),
 
-    #[error("Encountered an error while trying to read/write the console")]
-    ConsoleInteractionError(),
+    // Console interaction
+    #[error("Encountered an error while trying to read/write the console. {0}")]
+    ConsoleInteractionError(#[from] std::io::Error),
 }
 
+
+
+/* ------------- */
+/*   UTILITIES   */
+/* ------------- */
 
 pub fn decompress_folder(compressed_mod_folder: &Path) -> Result<PathBuf, InstallationError> {
     let extension = get_file_extension(compressed_mod_folder)?;
     
     match extension {
-        ".zip" => Ok(decompress_zip(compressed_mod_folder)?),
-        ".rar" => Ok(decompress_rar(compressed_mod_folder)?),
-        ".7z" => Ok(decompress_7z(compressed_mod_folder)?),
+        ".zip" => decompress_zip(compressed_mod_folder),
+        ".7z" => decompress_7z(compressed_mod_folder),
+        ".rar" => decompress_rar(compressed_mod_folder),
         _ => Err(InstallationError::UnsupportedCompressionError(extension.to_string()))
     }
 }
 
+fn get_file_extension(path: &Path) -> Result<&str, InstallationError> {
+    let Some(extension) = path.extension() else {
+        return Err(InstallationError::ExtensionlessFileError(path.to_path_buf()));
+    };
+    let Some(extension_str) = extension.to_str() else {
+       	return Err(InstallationError::InvalidExtensionError(path.to_path_buf()));
+    };
+
+    Ok(extension_str)
+}
+
 fn decompress_zip(zipped_mod_folder: &Path) -> Result<PathBuf, InstallationError> {
-    let zip_file = File::open(zipped_mod_folder)?;
-    let zip_archive = ZipArchive::new(zip_file)?;
+	let folder_name = zipped_mod_folder.file_stem()
+        .ok_or(InstallationError::NamelessArchiveError(zipped_mod_folder.to_path_buf()))?;
+	let mod_folder_parent = zipped_mod_folder.parent()
+		.ok_or(InstallationError::ParentlessArchiveError(zipped_mod_folder.to_path_buf()))?;
+    let extracted_folder = mod_folder_parent
+        .join(folder_name);
+	
+    let zip_file = File::open(zipped_mod_folder)
+        .map_err(|_| InstallationError::FileAccessingError(zipped_mod_folder.to_path_buf()))?;
+    let mut zip_archive = ZipArchive::new(zip_file)?;
     
+    zip_archive.extract(mod_folder_parent)?;
     
-    
-    Ok(PathBuf::new())
+    Ok(extracted_folder)
 }
+
 fn decompress_7z(sevzipped_mod_folder: &Path) -> Result<PathBuf, InstallationError> {
-    Ok(PathBuf::new())
+	let folder_name = sevzipped_mod_folder.file_stem()
+        .ok_or(InstallationError::NamelessArchiveError(sevzipped_mod_folder.to_path_buf()))?;
+	let mod_folder_parent = sevzipped_mod_folder.parent()
+		.ok_or(InstallationError::ParentlessArchiveError(sevzipped_mod_folder.to_path_buf()))?;
+	let extracted_folder = mod_folder_parent
+        .join(folder_name);
+	
+	decompress_file(sevzipped_mod_folder, mod_folder_parent)?;
+	
+	Ok(extracted_folder)
 }
+
 fn decompress_rar(rared_mod_folder: &Path) -> Result<PathBuf, InstallationError> {
-    Ok(PathBuf::new())
+	let folder_name = rared_mod_folder.file_stem()
+        .ok_or(InstallationError::NamelessArchiveError(rared_mod_folder.to_path_buf()))?;
+	let mod_folder_parent = rared_mod_folder.parent()
+		.ok_or(InstallationError::ParentlessArchiveError(rared_mod_folder.to_path_buf()))?;
+	let extracted_folder = mod_folder_parent
+        .join(folder_name);
+	
+	let mut rar_archive = Archive::new(rared_mod_folder).open_for_processing()?;
+	
+	while let Some(header) = rar_archive.read_header()? {
+  		rar_archive = if header.entry().is_file() {
+        	header.extract_to(mod_folder_parent)?
+    	} else {
+        	header.skip()?
+     	};
+	}
+	
+    Ok(extracted_folder)
 }
 
 
@@ -136,17 +203,6 @@ pub fn check_mod_type(mod_folder_path: &mut Path) -> Result<Option<(ModType, Pat
     }
 
     Ok(mod_contained.zip(mod_files_path))
-}
-
-fn get_file_extension(path: &Path) -> Result<&str, InstallationError> {
-    let Some(extension) = path.extension() else {
-        return Err(InstallationError::ExtensionlessFileError(path.to_path_buf()));
-    };
-    let Some(extension_str) = extension.to_str() else {
-       	return Err(InstallationError::InvalidExtensionError(path.to_path_buf()));
-    };
-
-    Ok(extension_str)
 }
 
 

@@ -8,6 +8,8 @@ use std::process::{Command, ExitStatus};
 
 use std::path::PathBuf;
 
+use crate::installation_utilities_and_methods::InstallationError;
+
 
 
 // CHECKING GAME PATH LOCATION
