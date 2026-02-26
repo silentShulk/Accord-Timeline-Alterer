@@ -12,6 +12,8 @@ use zip::ZipArchive;
 
 use crate::data_saving::{Mod, ModType};
 
+use crate::user_interactions::ask_mod_name;
+
 
 
 /* ------------- */
@@ -20,23 +22,35 @@ use crate::data_saving::{Mod, ModType};
 
 #[derive(Error, Debug)]
 pub enum InstallationError {
-    #[error("The received compressed folder uses an unsupported extension")]
-    UnsupportedCompressionError(String),
-    
-    #[error("Couldn't extract a compressed folder: {0}")]
-    FailedExtractionError(#[from] zip::result::ZipError),
-
-    #[error("Couldn't read an entry inside a folder")]
-    EntryReadingError(#[from] walkdir::Error),
-
-    #[error("Found an extensionless file, it will be skipped")]
+    // Extension Reading
+    #[error("{0} is an an extensionless file, it will be skipped")]
     ExtensionlessFileError(PathBuf),
 
     #[error("Found a file with an extension containing invalid UTF-8, it will be skipped")]
     InvalidExtensionError(PathBuf),
+    
+    // Decompression
+    #[error("The received compressed folder uses an unsupported extension")]
+    UnsupportedCompressionError(String),
+    
+    #[error("Couldn't access a file")]
+    FileAccessingError,
+    
+    #[error("Couldn't extract a compressed folder: {0}")]
+    FailedExtractionError(),
+
+    // Directory Reading Errors
+    #[error("Couldn't find or read completely a directory")]
+    DirectoryReadingError,
+    
+    #[error("Couldn't read an entry inside a folder")]
+    EntryReadingError(),
+    
+    #[error("Couldn't copy file")]
+    FileCopyingError,
 
     #[error("Encountered an error while trying to read/write the console")]
-    ConsoleInteractionError(#[from] std::io::Error),
+    ConsoleInteractionError(),
 }
 
 
@@ -258,16 +272,4 @@ pub fn install_cutscene_replacements(usm_folder_path: &Path, game_path: &Path) -
 
 pub fn install_reshade_preset(preset_folder_path: &Path, game_path: &Path) -> Result<Mod, InstallationError> {
 	Ok(Mod::new(String::from("Texture"), vec![], true, ModType::Textures))
-}
-
-
-
-fn ask_mod_name() -> Result<String, InstallationError> {
-	println!("Insert name of the mod that you are installing (choose anything you want, will be used as identifier)");
-	print!("Name: ");
-	stdout().flush()?;
-
-	let mut answer = String::new();
-	stdin().read_line(&mut answer)?;
-	Ok(answer)
 }

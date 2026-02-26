@@ -84,3 +84,13 @@ pub fn ask_for_mod_folder() -> Result<PathBuf, std::io::Error> {
     stdin().read_line(&mut answer)?;
     Ok(PathBuf::from(answer.trim()))
 }
+
+pub fn ask_mod_name() -> Result<String, InstallationError> {
+	println!("Insert name of the mod that you are installing (choose anything you want, will be used as identifier)");
+	print!("Name: ");
+	stdout().flush()?;
+
+	let mut answer = String::new();
+	stdin().read_line(&mut answer)?;
+	Ok(answer)
+}
