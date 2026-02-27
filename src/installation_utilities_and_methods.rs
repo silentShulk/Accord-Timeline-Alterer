@@ -54,14 +54,15 @@ pub enum InstallationError {
     FailedRarExtractionError(#[from] unrar::error::UnrarError),
 
     // Directory Reading Errors
-    #[error("Couldn't find or read completely {0}")]
-    DirectoryReadingError(PathBuf),
-    
-    #[error("Couldn't read an entry inside {0}")]
+    #[error("Couldn't read an entry. {0}")]
     EntryReadingError(#[from] walkdir::Error),
     
-    #[error("Couldn't copy {0} to {1}")]
-    FileCopyingError(PathBuf, PathBuf),
+    #[error("Couldn't find or read completely {0}")]
+    DirectoryReadingError(PathBuf, std::io::Error),
+
+    
+    #[error("Couldn't copy {0} to {1}. {2}")]
+    FileCopyingError(PathBuf, PathBuf, std::io::Error),
 
     // Console interaction
     #[error("Encountered an error while trying to read/write the console. {0}")]
@@ -186,7 +187,7 @@ pub fn check_mod_type(mod_folder_path: &mut Path) -> Result<Option<(ModType, Pat
                     Some("bg") => Some(ModType::WorldModels),
                     Some(_) => None,
                     None => {
-                        println!("\"{:?}\" contains invalid Unicode in its name and will therefore will be skipped", entry_path);
+                        println!("\"{:?}\" contains invalid Unicode in its name and will therefore will be skipped. Ensure this isn't supposed to be a mod file, if it is, than mod may not work without this file", entry_path);
                         continue;
                     }
                 }
@@ -217,11 +218,12 @@ pub fn install_texture(dss_folder_path: &Path, game_path: &Path) -> Result<Mod, 
     let texture_mods_folder = game_path.join("/SK_Res/inject/textures");
 
     let mut mod_files: Vec<PathBuf> = vec![];
-    for entry in read_dir(dss_folder_path)? {
+    for entry in read_dir(dss_folder_path).map_err(|err| InstallationError::DirectoryReadingError(dss_folder_path.to_path_buf(), err))? {
         let current_entry = entry?;
         let entry_path = current_entry.path();
 
-        copy(&entry_path, &texture_mods_folder)?;
+        copy(&entry_path, &texture_mods_folder)
+            .map_err(|err| InstallationError::FileCopyingError(entry_path.clone(), texture_mods_folder.clone(), err))?;
 
         mod_files.push(entry_path);
     }
@@ -240,11 +242,12 @@ pub fn install_player_model(dtt_dat_folder_path: &Path, game_path: &Path) -> Res
     let pl_mods_folder = game_path.join("/data/pl");
 
     let mut mod_files: Vec<PathBuf> = vec![];
-    for entry in read_dir(dtt_dat_folder_path)? {
+    for entry in read_dir(dtt_dat_folder_path).map_err(|err| InstallationError::DirectoryReadingError(dtt_dat_folder_path.to_path_buf(), err))?  {
         let current_entry = entry?;
         let entry_path = current_entry.path();
 
-        copy(&entry_path, &pl_mods_folder)?;
+        copy(&entry_path, &pl_mods_folder)
+            .map_err(|err| InstallationError::FileCopyingError(entry_path.clone(), pl_mods_folder.clone(), err))?;
 
         mod_files.push(entry_path);
     }
@@ -263,11 +266,12 @@ pub fn install_weapon_model(dtt_dat_folder_path: &Path, game_path: &Path) -> Res
     let wp_mods_folder = game_path.join("/data/wp");
 
     let mut mod_files: Vec<PathBuf> = vec![];
-    for entry in read_dir(dtt_dat_folder_path)? {
+    for entry in read_dir(dtt_dat_folder_path).map_err(|err| InstallationError::DirectoryReadingError(dtt_dat_folder_path.to_path_buf(), err))?  {
         let current_entry = entry?;
         let entry_path = current_entry.path();
 
-        copy(&entry_path, &wp_mods_folder)?;
+        copy(&entry_path, &wp_mods_folder)
+            .map_err(|err| InstallationError::FileCopyingError(entry_path.clone(), wp_mods_folder.clone(), err))?;
 
         mod_files.push(entry_path);
     }
@@ -286,11 +290,12 @@ pub fn install_world_model(dtt_dat_folder_path: &Path, game_path: &Path) -> Resu
     let bg_mods_folder = game_path.join("/data/bg");
 
     let mut mod_files: Vec<PathBuf> = vec![];
-    for entry in read_dir(dtt_dat_folder_path)? {
+    for entry in read_dir(dtt_dat_folder_path).map_err(|err| InstallationError::DirectoryReadingError(dtt_dat_folder_path.to_path_buf(), err))?  {
         let current_entry = entry?;
         let entry_path = current_entry.path();
 
-        copy(&entry_path, &bg_mods_folder)?;
+        copy(&entry_path, &bg_mods_folder)
+            .map_err(|err| InstallationError::FileCopyingError(entry_path.clone(), bg_mods_folder.clone(), err))?;
 
         mod_files.push(entry_path);
     }
@@ -309,11 +314,12 @@ pub fn install_cutscene_replacements(usm_folder_path: &Path, game_path: &Path) -
     let cutscene_mods_folder = game_path.join("/data/movie");
 
     let mut mod_files: Vec<PathBuf> = vec![];
-    for entry in read_dir(usm_folder_path)? {
+    for entry in read_dir(usm_folder_path).map_err(|err| InstallationError::DirectoryReadingError(usm_folder_path.to_path_buf(), err))?  {
         let current_entry = entry?;
         let entry_path = current_entry.path();
 
-        copy(&entry_path, &cutscene_mods_folder)?;
+        copy(&entry_path, &cutscene_mods_folder)
+            .map_err(|err| InstallationError::FileCopyingError(entry_path.clone(), cutscene_mods_folder.clone(), err))?;
 
         mod_files.push(entry_path);
     }
