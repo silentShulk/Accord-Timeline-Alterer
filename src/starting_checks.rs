@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 
 
-// CHECK IF GIVEN PATH CONTAINS GAME FILES
+// CHECK IF GIVEN PATH IS THE GAME'S PATH (CONTAINS GAME FILES)
 pub fn check_path(current_path: &Path) -> Result<bool, std::io::Error> {
     let is_gamepath = read_dir(current_path)?       
         .filter_map(|res| {     // For each entry return Some(is-exe) or None and warn the user that an entry couldn't be read

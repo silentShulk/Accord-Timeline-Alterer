@@ -73,7 +73,7 @@ impl Config {
             Ok(contents)
         }
         else {
-            println!("Config file (~/.config/ATA/data.json) not found, creating it with default values...\n");
+            println!("Config file (~/.config/ATA/data.json) not found, maybe it's the first time you use ATA? Creating it with default values...\n");
 
             Self::create_default_config_file(&data_file_path)
         }   
