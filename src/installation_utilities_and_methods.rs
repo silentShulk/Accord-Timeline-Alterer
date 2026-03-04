@@ -12,7 +12,7 @@ use sevenz_rust::decompress_file;
 
 use unrar::Archive;
 
-use crate::data_saving::{Mod, ModType};
+use crate::data_config::{Mod, ModType};
 
 use crate::user_interactions::ask_mod_name;
 
@@ -26,47 +26,47 @@ use crate::user_interactions::ask_mod_name;
 pub enum InstallationError {
     // Extension Reading
     #[error("{0} is an an extensionless file, it will be skipped")]
-    ExtensionlessFileError(PathBuf),
+    ExtensionlessFile(PathBuf),
 
     #[error("{0} has an extension containing invalid UTF-8, it will be skipped")]
-    InvalidExtensionError(PathBuf),
+    InvalidExtension(PathBuf),
     
     // Decompression
     #[error("The received compressed folder ({0}) uses an unsupported extension")]
-    UnsupportedCompressionError(String),
+    UnsupportedCompression(String),
     
     #[error("Couldn't access a {0}")]
-    FileAccessingError(PathBuf),
+    FileAccessing(PathBuf),
     
     #[error("Couldn't extract zip archive. {0}")]
-    FailedZipExtractionError(#[from] zip::result::ZipError),
+    FailedZipExtraction(#[from] zip::result::ZipError),
     
     #[error("Compressed archive ({0}) doesn't have a parent directory")]
-    ParentlessArchiveError(PathBuf),
+    ParentlessArchive(PathBuf),
     
     #[error("The compressed archive ({0}) doesn't have a name")]
-    NamelessArchiveError(PathBuf),
+    NamelessArchive(PathBuf),
        
     #[error("Couldn't extract 7z archive. {0}")]
-    Failed7zExtractionError(#[from] sevenz_rust::Error),
+    Failed7zExtraction(#[from] sevenz_rust::Error),
     
     #[error("Couldn't extract rar archive. {0}")]
-    FailedRarExtractionError(#[from] unrar::error::UnrarError),
+    FailedRarExtraction(#[from] unrar::error::UnrarError),
 
     // Directory Reading Errors
     #[error("Couldn't read an entry. {0}")]
-    EntryReadingError(#[from] walkdir::Error),
+    EntryReading(#[from] walkdir::Error),
     
     #[error("Couldn't find or read completely {0}")]
-    DirectoryReadingError(PathBuf, std::io::Error),
+    DirectoryReading(PathBuf, std::io::Error),
 
     
     #[error("Couldn't copy {0} to {1}. {2}")]
-    FileCopyingError(PathBuf, PathBuf, std::io::Error),
+    FileCopying(PathBuf, PathBuf, std::io::Error),
 
     // Console interaction
     #[error("Encountered an error while trying to read/write the console. {0}")]
-    ConsoleInteractionError(#[from] std::io::Error),
+    ConsoleInteraction(#[from] std::io::Error),
 }
 
 
@@ -82,16 +82,16 @@ pub fn decompress_folder(compressed_mod_folder: &Path) -> Result<PathBuf, Instal
         ".zip" => decompress_zip(compressed_mod_folder),
         ".7z" => decompress_7z(compressed_mod_folder),
         ".rar" => decompress_rar(compressed_mod_folder),
-        _ => Err(InstallationError::UnsupportedCompressionError(extension.to_string()))
+        _ => Err(InstallationError::UnsupportedCompression(extension.to_string()))
     }
 }
 
 fn get_file_extension(path: &Path) -> Result<&str, InstallationError> {
     let Some(extension) = path.extension() else {
-        return Err(InstallationError::ExtensionlessFileError(path.to_path_buf()));
+        return Err(InstallationError::ExtensionlessFile(path.to_path_buf()));
     };
     let Some(extension_str) = extension.to_str() else {
-       	return Err(InstallationError::InvalidExtensionError(path.to_path_buf()));
+       	return Err(InstallationError::InvalidExtension(path.to_path_buf()));
     };
 
     Ok(extension_str)
@@ -99,14 +99,14 @@ fn get_file_extension(path: &Path) -> Result<&str, InstallationError> {
 
 fn decompress_zip(zipped_mod_folder: &Path) -> Result<PathBuf, InstallationError> {
 	let folder_name = zipped_mod_folder.file_stem()
-        .ok_or(InstallationError::NamelessArchiveError(zipped_mod_folder.to_path_buf()))?;
+        .ok_or(InstallationError::NamelessArchive(zipped_mod_folder.to_path_buf()))?;
 	let mod_folder_parent = zipped_mod_folder.parent()
-		.ok_or(InstallationError::ParentlessArchiveError(zipped_mod_folder.to_path_buf()))?;
+		.ok_or(InstallationError::ParentlessArchive(zipped_mod_folder.to_path_buf()))?;
     let extracted_folder = mod_folder_parent
         .join(folder_name);
 	
     let zip_file = File::open(zipped_mod_folder)
-        .map_err(|_| InstallationError::FileAccessingError(zipped_mod_folder.to_path_buf()))?;
+        .map_err(|_| InstallationError::FileAccessing(zipped_mod_folder.to_path_buf()))?;
     let mut zip_archive = ZipArchive::new(zip_file)?;
     
     zip_archive.extract(mod_folder_parent)?;
@@ -116,9 +116,9 @@ fn decompress_zip(zipped_mod_folder: &Path) -> Result<PathBuf, InstallationError
 
 fn decompress_7z(sevzipped_mod_folder: &Path) -> Result<PathBuf, InstallationError> {
 	let folder_name = sevzipped_mod_folder.file_stem()
-        .ok_or(InstallationError::NamelessArchiveError(sevzipped_mod_folder.to_path_buf()))?;
+        .ok_or(InstallationError::NamelessArchive(sevzipped_mod_folder.to_path_buf()))?;
 	let mod_folder_parent = sevzipped_mod_folder.parent()
-		.ok_or(InstallationError::ParentlessArchiveError(sevzipped_mod_folder.to_path_buf()))?;
+		.ok_or(InstallationError::ParentlessArchive(sevzipped_mod_folder.to_path_buf()))?;
 	let extracted_folder = mod_folder_parent
         .join(folder_name);
 	
@@ -129,9 +129,9 @@ fn decompress_7z(sevzipped_mod_folder: &Path) -> Result<PathBuf, InstallationErr
 
 fn decompress_rar(rared_mod_folder: &Path) -> Result<PathBuf, InstallationError> {
 	let folder_name = rared_mod_folder.file_stem()
-        .ok_or(InstallationError::NamelessArchiveError(rared_mod_folder.to_path_buf()))?;
+        .ok_or(InstallationError::NamelessArchive(rared_mod_folder.to_path_buf()))?;
 	let mod_folder_parent = rared_mod_folder.parent()
-		.ok_or(InstallationError::ParentlessArchiveError(rared_mod_folder.to_path_buf()))?;
+		.ok_or(InstallationError::ParentlessArchive(rared_mod_folder.to_path_buf()))?;
 	let extracted_folder = mod_folder_parent
         .join(folder_name);
 	
@@ -218,12 +218,12 @@ pub fn install_texture(dss_folder_path: &Path, game_path: &Path) -> Result<Mod, 
     let texture_mods_folder = game_path.join("/SK_Res/inject/textures");
 
     let mut mod_files: Vec<PathBuf> = vec![];
-    for entry in read_dir(dss_folder_path).map_err(|err| InstallationError::DirectoryReadingError(dss_folder_path.to_path_buf(), err))? {
+    for entry in read_dir(dss_folder_path).map_err(|err| InstallationError::DirectoryReading(dss_folder_path.to_path_buf(), err))? {
         let current_entry = entry?;
         let entry_path = current_entry.path();
 
         copy(&entry_path, &texture_mods_folder)
-            .map_err(|err| InstallationError::FileCopyingError(entry_path.clone(), texture_mods_folder.clone(), err))?;
+            .map_err(|err| InstallationError::FileCopying(entry_path.clone(), texture_mods_folder.clone(), err))?;
 
         mod_files.push(entry_path);
     }
@@ -242,12 +242,12 @@ pub fn install_player_model(dtt_dat_folder_path: &Path, game_path: &Path) -> Res
     let pl_mods_folder = game_path.join("/data/pl");
 
     let mut mod_files: Vec<PathBuf> = vec![];
-    for entry in read_dir(dtt_dat_folder_path).map_err(|err| InstallationError::DirectoryReadingError(dtt_dat_folder_path.to_path_buf(), err))?  {
+    for entry in read_dir(dtt_dat_folder_path).map_err(|err| InstallationError::DirectoryReading(dtt_dat_folder_path.to_path_buf(), err))?  {
         let current_entry = entry?;
         let entry_path = current_entry.path();
 
         copy(&entry_path, &pl_mods_folder)
-            .map_err(|err| InstallationError::FileCopyingError(entry_path.clone(), pl_mods_folder.clone(), err))?;
+            .map_err(|err| InstallationError::FileCopying(entry_path.clone(), pl_mods_folder.clone(), err))?;
 
         mod_files.push(entry_path);
     }
@@ -266,12 +266,12 @@ pub fn install_weapon_model(dtt_dat_folder_path: &Path, game_path: &Path) -> Res
     let wp_mods_folder = game_path.join("/data/wp");
 
     let mut mod_files: Vec<PathBuf> = vec![];
-    for entry in read_dir(dtt_dat_folder_path).map_err(|err| InstallationError::DirectoryReadingError(dtt_dat_folder_path.to_path_buf(), err))?  {
+    for entry in read_dir(dtt_dat_folder_path).map_err(|err| InstallationError::DirectoryReading(dtt_dat_folder_path.to_path_buf(), err))?  {
         let current_entry = entry?;
         let entry_path = current_entry.path();
 
         copy(&entry_path, &wp_mods_folder)
-            .map_err(|err| InstallationError::FileCopyingError(entry_path.clone(), wp_mods_folder.clone(), err))?;
+            .map_err(|err| InstallationError::FileCopying(entry_path.clone(), wp_mods_folder.clone(), err))?;
 
         mod_files.push(entry_path);
     }
@@ -290,12 +290,12 @@ pub fn install_world_model(dtt_dat_folder_path: &Path, game_path: &Path) -> Resu
     let bg_mods_folder = game_path.join("/data/bg");
 
     let mut mod_files: Vec<PathBuf> = vec![];
-    for entry in read_dir(dtt_dat_folder_path).map_err(|err| InstallationError::DirectoryReadingError(dtt_dat_folder_path.to_path_buf(), err))?  {
+    for entry in read_dir(dtt_dat_folder_path).map_err(|err| InstallationError::DirectoryReading(dtt_dat_folder_path.to_path_buf(), err))?  {
         let current_entry = entry?;
         let entry_path = current_entry.path();
 
         copy(&entry_path, &bg_mods_folder)
-            .map_err(|err| InstallationError::FileCopyingError(entry_path.clone(), bg_mods_folder.clone(), err))?;
+            .map_err(|err| InstallationError::FileCopying(entry_path.clone(), bg_mods_folder.clone(), err))?;
 
         mod_files.push(entry_path);
     }
@@ -314,12 +314,12 @@ pub fn install_cutscene_replacements(usm_folder_path: &Path, game_path: &Path) -
     let cutscene_mods_folder = game_path.join("/data/movie");
 
     let mut mod_files: Vec<PathBuf> = vec![];
-    for entry in read_dir(usm_folder_path).map_err(|err| InstallationError::DirectoryReadingError(usm_folder_path.to_path_buf(), err))?  {
+    for entry in read_dir(usm_folder_path).map_err(|err| InstallationError::DirectoryReading(usm_folder_path.to_path_buf(), err))?  {
         let current_entry = entry?;
         let entry_path = current_entry.path();
 
         copy(&entry_path, &cutscene_mods_folder)
-            .map_err(|err| InstallationError::FileCopyingError(entry_path.clone(), cutscene_mods_folder.clone(), err))?;
+            .map_err(|err| InstallationError::FileCopying(entry_path.clone(), cutscene_mods_folder.clone(), err))?;
 
         mod_files.push(entry_path);
     }

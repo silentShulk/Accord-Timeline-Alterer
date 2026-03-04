@@ -4,8 +4,8 @@ use std::thread::sleep;
 
 use clap::Parser;
 
-mod data_saving;
-use data_saving::{Config, Mod};
+mod data_config;
+use data_config::{Config, Mod};
 
 mod starting_checks;
 use starting_checks::{
@@ -36,7 +36,7 @@ fn main() {
     // LOAD DATA IF PRESENT
     println!("Loading data file (~/.config/ATA/data.json)");
     
-    sleep(Duration::from_millis(3000));
+    sleep(Duration::from_millis(2000));
     
     let mut current_config = Config::load_config()
     .unwrap_or_else(|err| {
@@ -56,7 +56,7 @@ fn main() {
     // CHECKING GAME PATH LOCATION
     println!("Checking if the currently saved gamepath is the correct one (contains the game's files)");
     
-    sleep(Duration::from_millis(3000));
+    sleep(Duration::from_millis(2000));
     
     let mut path_is_valid = false;
     while !path_is_valid {
@@ -89,7 +89,7 @@ fn main() {
     // CHECKING IF THE REQUIRED MODDING FILES ARE INSTALLED
     println!("Checking if the required modding files are installed");
     
-    sleep(Duration::from_millis(3000));
+    sleep(Duration::from_millis(2000));
     
     let missing_required_modding_files = check_for_required_modding_files(&current_config.game_path);
     if missing_required_modding_files.len() > 0 {

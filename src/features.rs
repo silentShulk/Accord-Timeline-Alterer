@@ -1,8 +1,8 @@
 use std::error::Error;
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-use crate::data_saving::{Mod, ModType};
+use crate::data_config::{Mod, ModType};
 
 use crate::installation_utilities_and_methods::{
     check_mod_type, decompress_folder,
