@@ -1,4 +1,4 @@
-# #! /bin/bash
+#! /bin/bash
 
 # CHECK FOR ARGUMENT
 if [ $# -eq 0 ]; then
@@ -18,7 +18,7 @@ mkdir -p $HOME/.local/bin
 
 
 # Copying files into the newly created directories
-echo "Copying ATA files into ~/.local/share/ and ~/usr/bin"
+echo "Copying ATA files into ~/.local/share/ and ~/.local/bin"
 cp ./install-prerequisites.sh $HOME/.local/share/ATA
 cp ./target/release/ATA $HOME/.local/bin
 
@@ -39,4 +39,4 @@ EOF
 
 echo ""
 echo "Installation complete, make sure ~/.local/bin is in your PATH
-Do not touch the ATA folders in ~/.config ~/.local/share and ~/.local/bin"
+Do not touch the ATA folders in ~/.config, ~/.local/share and ~/.local/bin"
