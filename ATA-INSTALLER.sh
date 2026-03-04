@@ -26,11 +26,13 @@ cp ./target/release/ATA $HOME/.local/bin
 
 # Creating default data file
 echo "Creating default data file in ~/.config/"
-touch $HOME/.config/data.json
+touch $HOME/.config/ATA/data.json
+
+game_path=$1
 
 cat <<EOF > "$HOME/.config/ATA/data.json"
 {
-  "game_path": "$1",
+  "game_path": "$game_path",
   "mods": []
 }
 EOF

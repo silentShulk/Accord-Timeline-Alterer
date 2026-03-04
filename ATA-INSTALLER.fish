@@ -1,7 +1,7 @@
 #! /bin/fish
 
 # CHECK FOR ARGUMENT
-if test (count argv) -eq  0 
+if test (count $argv) -eq  0 
     echo "REQUIRED ARGUMENT NOT FOUND
         Run the installer again and pass the path to Automata's folder
         (the one containing the exe)"
@@ -26,16 +26,16 @@ cp ./target/release/ATA $HOME/.local/bin
 
 # Creating default data file
 echo "Creating default data file in ~/.config"
-touch $HOME/.config/data.json
+touch $HOME/.config/ATA/data.json
 
-cat <<EOF > "$HOME/.config/ATA/data.json"
-{
-  "game_path": "$argv[1]",
-  "mods": []
-}
-EOF
+set game_path $argv[1]
+
+echo "{
+  \"game_path\": \"$game_path\",
+  \"mods\": []
+}" > $HOME/.config/ATA/data.json
 
 
 
 printf "\nInstallation complete, make sure ~/.local/bin is in your PATH
-Do not touch the ATA folders inside ~/.config, ~/.local/share and ~/.local/bin"
+Do not touch the ATA folders inside ~/.config, ~/.local/share and ~/.local/bin\n"
