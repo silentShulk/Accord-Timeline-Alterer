@@ -1,25 +1,23 @@
-#! /bin/fish
+#! /bin/bash
 
 # CHECK FOR ARGUMENT
-if test (count argv) -eq 0
-    echo "REQUIRED ARGUMENT NOT FOUND
-    Run the installer again and pass the path to Automata's folder
-    (the one containing the exe)";
-    exit 1
-    exit 1
-end
+if [ "$#" -eq 0 ]; then
+  echo "REQUIRED ARGUMENT NOT FOUND
+  Run the installer again and pass the path to Automata's folder
+  (the one containing the exe)";
+  exit 1
+fi
 
 
 
 # Installing Microsoft C++ tools
-./bin/VC_redist.x64.exe     # 64 bits
-
-./bin/VC_redist.x86.exe     # 32 bits
+wine ./bin/VC_redist.x64.exe     # 64 bits
+wine ./bin/VC_redist.x86.exe     # 32 bits
 
 
 
 # Copying modded files in game directory
-set game_dir argv[1]
+game_dir="$1"
 
 mv "$game_dir/NieRAutomata.exe" "$game_dir/NieRAutomata(original).exe"  # Change the name of the default exe
 cp ./bin/NieRAutomata.exe "$game_dir"                                   # Put the WolfFileSizeLimitBreaker exe in the game directory
