@@ -1,16 +1,29 @@
 #! /bin/bash
 
+echo "Please go read the documentation if you haven't already" && echo ""
+
 # CHECK FOR ARGUMENT
 if [ $# -eq 0 ]; then
-  echo "REQUIRED ARGUMENT NOT FOUND.
-  Run the installer again and pass the path to Automata's folder
-  (the one containing the exe)";
-  exit 1
+  	echo "REQUIRED ARGUMENT NOT FOUND.
+  	Run the installer again and pass the path to Automata's folder
+   	(the one containing the exe)";
+    exit 1
 fi
+
+# CHECK IF GIVEN PATH IS ACTUALLY GAME PATH
+if [ ! -f "$1/NieRAutomata.exe" ]; then
+	echo "REQUIRED ARGUMENT NOT FOUND.
+	Run the installer again and pass the path to Automata's folder
+   	(the one containing the exe)";
+   	exit 1
+fi
+
+game_path=$1
 
 
 
 # Creating directories
+echo "Creating directories in ~/.config and ~/.local"
 mkdir -p $HOME/.config/ATA/
 mkdir -p $HOME/.local/share/ATA
 mkdir -p $HOME/.local/bin
@@ -28,15 +41,16 @@ cp ./target/release/ATA $HOME/.local/bin
 echo "Creating default data file in ~/.config/"
 touch $HOME/.config/ATA/data.json
 
-game_path=$1
+echo "{
+  \"game_path\": \"$game_path\",
+  \"mods\": []
+}" > $HOME/.config/ATA/data.json
 
-cat <<EOF > "$HOME/.config/ATA/data.json"
-{
-  "game_path": "$game_path",
-  "mods": []
-}
-EOF
 
+
+# Installing required modding files 
+echo "Running script to install files needed to mod the game"
+./install-prerequisites.sh
 
 
 echo ""

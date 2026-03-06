@@ -54,9 +54,18 @@ pub fn uninstall_mod(game_path: &Path) -> Result<Mod, Box<dyn std::error::Error>
 
 
 
+/* ---------------- */
+/*   MOD MANAGING   */
+/* ---------------- */
 
 pub fn list_mods(mods: &Vec<Mod>) {
     println!("Not implemented yet, pls do not kill me")
 }
 
+pub fn enable_mod() {
+	
+}
 
+pub fn disable_mod() {
+	
+}
