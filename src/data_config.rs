@@ -13,7 +13,7 @@ use serde::{Serialize, Deserialize};
 
 
 #[derive(Error, Debug)]
-pub enum ConfigLoadingError {
+pub enum ConfigInteractionError {
     #[error("The $HOME env isn't present in your system (wtf)")]
     HomeEnvNotFound(#[from] VarError),
     
@@ -63,15 +63,8 @@ pub struct Config {
     pub mods: Vec<Mod>,
 }
 impl Config {
-    // Save the config to file
-    // fn save_config(&self) -> Result<(), Box<dyn std::error::Error>> {
-    //     let data_file = File::create(DATA_FILE_PATH)?;
-    //     serde_json::to_writer_pretty(data_file, self)?;
-    //     Ok(())
-    // }
-
-    // Load the config from file, or load a default one
-    pub fn load_config() -> Result<Self, ConfigLoadingError>
+	// Load the config from file, or load a default one
+    pub fn load_config() -> Result<Self, ConfigInteractionError>
     {
         let home_dir = var("HOME")?;
         let data_file_path = PathBuf::from(home_dir)
@@ -84,5 +77,24 @@ impl Config {
         let contents = serde_json::from_reader(reader)?;
 
         Ok(contents)
+    }
+	
+	pub fn save_new_mod(&mut self, new_mod: Mod) -> Result<(), ConfigInteractionError>{
+		self.mods.push(new_mod);
+		
+		self.update_data_file()
+	}
+
+    fn update_data_file(&self) -> Result<(), ConfigInteractionError> {
+    	let home_dir = var("HOME")?;
+     	let data_file_path = PathBuf::from(home_dir)
+        	.join(".config")
+         	.join("ATA")
+          	.join("data.json");
+    
+    	let data_file = File::open(data_file_path)?;
+    	serde_json::to_writer_pretty(data_file, &self)?;
+     
+     	Ok(())
     }
 }
