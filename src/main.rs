@@ -3,14 +3,9 @@ use clap::Parser;
 mod data_config;
 use data_config::{Config};
 
-mod starting_checks;
-use starting_checks::{
-    check_for_required_modding_files
-};
-
 mod user_interactions;
 use user_interactions::{
-    missing_files_warning, run_auto_install_script, ask_user_action, ask_for_mod_folder
+    ask_user_action, ask_for_mod_folder
 };
 
 mod features;
@@ -29,7 +24,6 @@ fn main() {
     /*   LOADING CONFIG DATA   */
     /* ----------------------- */
 
-    // LOAD DATA IF PRESENT
     println!("Loading data file (~/.config/ATA/data.json)");
     
     let mut current_config = Config::load_config()
@@ -46,6 +40,11 @@ fn main() {
     /* -------------------------------- */
     /*   STARTING ONE OF THE FEATURES   */
     /* -------------------------------- */
+    
+    clearscreen::clear().unwrap_or_else(|er| {
+   		eprintln!("There was a problem clearing the console screen. {}
+     			ATA will now close...", er)
+    });
 
     let mut action_id = String::from("");
     while action_id != "0" {
