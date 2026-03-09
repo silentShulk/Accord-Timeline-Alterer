@@ -5,13 +5,17 @@ use data_config::{Config};
 
 mod user_interactions;
 use user_interactions::{
-    ask_user_action, ask_for_mod_folder
+    ask_user_action
 };
 
 mod features;
 use features::{install_mod, uninstall_mod, list_mods};
 
-mod installation_utilities_and_methods;
+mod installation_functions;
+use installation_functions::ask_for_mod_folder;
+
+mod uninstallation_functions;
+use uninstallation_functions::ask_for_mod_name;
 
 
 
@@ -63,7 +67,8 @@ fn main() {
             });
 
         	let installed_mod = install_mod(&current_config.game_path, &answered_path).unwrap_or_else(|er| {
-             	eprintln!("There was a problem installing the mod. {}", er);
+             	eprintln!("There was a problem installing the mod. {}
+                        ATA will now close...", er);
                	std::process::exit(1);
             });
          
@@ -76,7 +81,17 @@ fn main() {
         }
         // UNINSTALL A MOD
         else if action_id == "2" {
-        	uninstall_mod(&current_config.game_path);
+            let mod_to_uninstall = ask_for_mod_name().unwrap_or_else(|er| {
+                eprintln!("There was a problem using the console for asking for the compressed mod folder. {}
+                        ATA will now close...", er);
+                std::process::exit(1);
+            });
+            
+        	uninstall_mod(&current_config.game_path, &current_config.mods, mod_to_uninstall).unwrap_or_else(|er| {
+            	eprintln!("There was a problem uninstalling the mod. {}
+                        ATA will now close...", er);
+              	std::process::exit(1);
+            });
         } 
         // PRINT THE LIST OF INSTALLED MODS
         else if action_id == "3" {

@@ -18,7 +18,7 @@ pub enum ConfigInteractionError {
     HomeEnvNotFound(#[from] VarError),
     
     #[error("Coudln't access data.json file")]
-    FileAccessing(#[from] std::io::Error),
+    DataFileAccessing(#[from] std::io::Error),
     
     #[error("Unable to read contents of data.json")]
     JsonReading(#[from] serde_json::Error)
@@ -40,7 +40,7 @@ pub enum ModType {
 // Things to take note about a mod for both mod managing and informing the user
 #[derive(Serialize, Deserialize)]
 pub struct Mod {
-    name: String,           // Name of the mod given by the user
+    pub name: String,           // Name of the mod given by the user
     files: Vec<PathBuf>,    // Files used by the mod (not the folder contaning, list of all files one by one)
     enabled: bool,          // Whether the mod is enabled or not
     mod_type: ModType,      // Type of the mod 
