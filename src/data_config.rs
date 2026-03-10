@@ -27,7 +27,7 @@ pub enum ConfigInteractionError {
 
 
 // The various types of mod that can be installed with ATA
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq)]
 pub enum ModType {
     Textures,
     PlayerModels,
@@ -38,12 +38,12 @@ pub enum ModType {
 }
 
 // Things to take note about a mod for both mod managing and informing the user
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone, PartialEq)]
 pub struct Mod {
     pub name: String,           // Name of the mod given by the user
-    files: Vec<PathBuf>,    // Files used by the mod (not the folder contaning, list of all files one by one)
-    enabled: bool,          // Whether the mod is enabled or not
-    mod_type: ModType,      // Type of the mod 
+    pub files: Vec<PathBuf>,    // Files used by the mod (not the folder contaning, list of all files one by one)
+    pub enabled: bool,          // Whether the mod is enabled or not
+    pub mod_type: ModType,      // Type of the mod 
 }
 impl Mod {
     pub fn new(name: String, files: Vec<PathBuf>, enabled: bool, mod_type: ModType) -> Self {
@@ -84,6 +84,12 @@ impl Config {
 		
 		self.update_data_file()
 	}
+	
+	pub fn remove_mod(&mut self, index_to_remove: usize) -> Result<(), ConfigInteractionError> {
+        self.mods.remove(index_to_remove);
+
+		self.update_data_file()
+	}       
 
     fn update_data_file(&self) -> Result<(), ConfigInteractionError> {
     	let home_dir = var("HOME")?;

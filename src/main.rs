@@ -75,6 +75,7 @@ fn main() {
         	current_config.save_new_mod(installed_mod).unwrap_or_else(|er| {
        			eprintln!("Therer was a problem adding the newly installed mod to the data file. {}
           				ATA will now close...", er);
+                std::process::exit(1);
          	});
          
             println!("MOD INSTALLED");   
@@ -87,11 +88,17 @@ fn main() {
                 std::process::exit(1);
             });
             
-        	uninstall_mod(&current_config.game_path, &current_config.mods, mod_to_uninstall).unwrap_or_else(|er| {
+        	let uninstalled_mod_index = uninstall_mod(&current_config.mods, mod_to_uninstall).unwrap_or_else(|er| {
             	eprintln!("There was a problem uninstalling the mod. {}
                         ATA will now close...", er);
               	std::process::exit(1);
             });
+         
+            current_config.remove_mod(uninstalled_mod_index).unwrap_or_else(|er| {
+                eprintln!("There was a problem removing the newly installed mod to the data file. {}
+                        ATA will now close...", er);
+                std::process::exit(1);
+            })
         } 
         // PRINT THE LIST OF INSTALLED MODS
         else if action_id == "3" {

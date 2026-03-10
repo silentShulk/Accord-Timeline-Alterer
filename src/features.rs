@@ -1,5 +1,3 @@
-use std::error::Error;
-
 use std::path::Path;
 
 use crate::data_config::{Mod, ModType};
@@ -9,7 +7,9 @@ use crate::installation_functions::{
     decompress_folder, ask_mod_name, get_mod_data,
     install_texture, install_player_model, install_weapon_model, install_world_model, install_cutscene_replacements, install_reshade_preset,
 };
-use crate::uninstallation_functions::UninstallationError;
+use crate::uninstallation_functions::{
+    UninstallationError, remove_mod_files
+};
 
 
 
@@ -51,14 +51,15 @@ pub fn install_mod(game_path: &Path, compressed_mod_folder_path: &Path) -> Resul
 /*   MOD UNINSTALLATION   */
 /* ---------------------- */
 
-pub fn uninstall_mod(game_path: &Path, installed_mods: &Vec<Mod>, mod_name: String) -> Result<Mod, UninstallationError> {
-    // Check if a mod with that name exists
-    let Some(mod_to_uninstall) = installed_mods.iter().find(|m| m.name == mod_name) else {
-        return Err(UninstallationError::ModNotFound(mod_name))
-    };
+pub fn uninstall_mod(installed_mods: &Vec<Mod>, mod_name: String) -> Result<usize, UninstallationError> {
+    let index_to_uninstall = installed_mods
+        .iter()
+        .position(|m| m.name == mod_name)
+        .ok_or(UninstallationError::ModNotFound(mod_name))?;
+
+    remove_mod_files(installed_mods[index_to_uninstall].clone().files)?;
     
-    // Uninstall the mod
-    Ok(Mod::new(String::from(""), vec![], false, ModType::PlayerModels))
+    Ok(index_to_uninstall)
 }
 
 
@@ -68,7 +69,19 @@ pub fn uninstall_mod(game_path: &Path, installed_mods: &Vec<Mod>, mod_name: Stri
 /* ---------------- */
 
 pub fn list_mods(mods: &Vec<Mod>) {
-    println!("Not implemented yet, pls do not kill me")
+    println!("List of mods:\n");
+    for installed_mod in mods {
+        println!("\t- {}\n", installed_mod.name);
+        
+        println!("\t\tFiles: ");
+        for file in installed_mod.files.clone() {
+            println!("\t\t- {:?}", file)
+        }
+        
+        println!("Enabled: {}", if installed_mod.enabled==true {"Yes"} else {"No"});
+        
+        println!("Mod Type: {}", installed_mod.mod_type)
+    }
 }
 
 pub fn enable_mod() {
