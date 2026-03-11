@@ -70,6 +70,11 @@ pub fn uninstall_mod(installed_mods: &Vec<Mod>, mod_name: String) -> Result<usiz
 
 pub fn list_mods(mods: &Vec<Mod>) {
     println!("List of mods:\n");
+    if mods.len() == 0 {
+        println!("Empty! No mods installed");
+        return 
+    }
+    
     for installed_mod in mods {
         println!("\t- {}\n", installed_mod.name);
         

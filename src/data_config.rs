@@ -1,10 +1,12 @@
-use std::io::BufReader;
-
 use std::fs::File;
 
 use std::env::{VarError, var};
 
+use std::io::BufReader;
+
 use std::path::PathBuf;
+
+use std::fmt;
 
 use thiserror::Error;
 
@@ -35,6 +37,18 @@ pub enum ModType {
     WorldModels,
     CutsceneReplacements,
     ReshadePreset,
+}
+impl fmt::Display for ModType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ModType::Textures => write!(f, "Textures"),
+            ModType::PlayerModels => write!(f, "Player Models"),
+            ModType::WeaponModels => write!(f, "Weapon Models"),
+            ModType::WorldModels => write!(f, "World Models"),
+            ModType::CutsceneReplacements => write!(f, "Cutscene Replacements"),
+            ModType::ReshadePreset => write!(f, "ReShade Preset"),
+        }
+    }
 }
 
 // Things to take note about a mod for both mod managing and informing the user
