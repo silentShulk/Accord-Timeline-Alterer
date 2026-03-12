@@ -11,11 +11,13 @@ use user_interactions::{
 mod features;
 use features::{install_mod, uninstall_mod, list_mods};
 
-mod installation_functions;
-use installation_functions::ask_for_mod_folder;
+mod installation_utilities;
+use installation_utilities::ask_for_mod_folder;
 
-mod uninstallation_functions;
-use uninstallation_functions::ask_for_mod_name;
+mod uninstallation_utilities;
+use uninstallation_utilities::ask_for_mod_name;
+
+mod enabling_disabling_utilities;
 
 
 

@@ -1,15 +1,20 @@
-use std::path::Path;
+use std::fs::rename;
+
+use std::error::Error;
+
+use std::path::{PathBuf, Path};
 
 use crate::data_config::{Mod, ModType};
 
-use crate::installation_functions::{
+use crate::installation_utilities::{
     InstallationError,
     decompress_folder, ask_mod_name, get_mod_data,
     install_texture, install_player_model, install_weapon_model, install_world_model, install_cutscene_replacements, install_reshade_preset,
 };
-use crate::uninstallation_functions::{
+use crate::uninstallation_utilities::{
     UninstallationError, remove_mod_files
 };
+use crate::enabling_disabling_utilities::*;
 
 
 
@@ -70,11 +75,6 @@ pub fn uninstall_mod(installed_mods: &Vec<Mod>, mod_name: String) -> Result<usiz
 
 pub fn list_mods(mods: &Vec<Mod>) {
     println!("List of mods:\n");
-    if mods.len() == 0 {
-        println!("Empty! No mods installed");
-        return 
-    }
-    
     for installed_mod in mods {
         println!("\t- {}\n", installed_mod.name);
         
@@ -89,10 +89,32 @@ pub fn list_mods(mods: &Vec<Mod>) {
     }
 }
 
-pub fn enable_mod() {
-	
+pub fn enable_mod(game_path: &PathBuf, mod_to_enable: &Mod) -> Result<(), EnablingDisablingError>  {
+    for file in &mod_to_enable.files {
+        let Some(file_name) = file.file_name() else {
+            return Err(EnablingDisablingError::DotDotPath(file.to_path_buf()))
+        };
+        let Some(file_parent) = file.parent() else {
+            return Err(EnablingDisablingError::ParentlessOrEmptyPath(file.to_path_buf()))
+        };
+        
+        rename(file, file_parent.join(file_name))?;
+    }
+    
+    Ok(())
 }
 
-pub fn disable_mod() {
-	
+pub fn disable_mod(game_path: &PathBuf, mod_to_disable: &Mod) -> Result<(), EnablingDisablingError>  {
+    for file in &mod_to_disable.files {
+        let Some(file_name) = file.file_name() else {
+            return Err(EnablingDisablingError::DotDotPath(file.to_path_buf()))
+        };
+        let Some(file_parent) = file.parent() else {
+            return Err(EnablingDisablingError::ParentlessOrEmptyPath(file.to_path_buf()))
+        };
+        
+        rename(file, file_parent.join(".disabled").join(file_name))?;
+    }
+    
+    Ok(())
 }
