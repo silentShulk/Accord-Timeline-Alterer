@@ -1,4 +1,6 @@
 use std::process::Command;
+use std::io::stdin;
+use std::io::stdout;
 
 use thiserror::Error;
 
@@ -10,28 +12,27 @@ pub enum CommandError {
     SignalKill(String),
     
     #[error("{0} crashed with exit code {1}")]
-    CommandCrash(String, i32)
+    CommandCrash(String, i32),
+
+    #[error("{0} process failed to spawn")]
+    FailedSpawn(#[from] std::io::Error)
 }
 
 
 
-pub fn ask_user_action() -> Result<String, std::io::Error> {
-    let fzf_output = Command::new("fzf")
-        .arg("--prompt=\"What do you want to do?\"")
+pub fn ask_user_action() -> Result<String, CommandError> {
+    let mut child = Command::new("fzf")
+        .arg("--prompt=What do you want to do? ")
         .arg("--height=10%")
-        .status();
-    
-    match fzf_output {
-        Ok(exit_status) => {
-            if !exit_status.success() {
-                if let Some(code) = exit_status.code() {
-                    return Err(std::io::Error::other(format!("fzf exited with code {}", code)));
-                } else {
-                    return Err(std::io::Error::other("fzf was killed by a signal"));
-                }
-            }
-        }
-        Err(er) => {}
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()?;
+
+    if !fzf_status.success() {
+        return match fzf_status.code() {
+            Some(code) => Err(CommandError::CommandCrash("fzf".to_string(), code)),
+            None =>       Err(CommandError::SignalKill("fzf".to_string())),
+        };
     }
     
     return Ok(String::new())
