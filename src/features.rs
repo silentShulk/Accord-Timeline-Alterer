@@ -1,7 +1,5 @@
 use std::fs::rename;
 
-use std::error::Error;
-
 use std::path::{PathBuf, Path};
 
 use crate::data_config::{Mod, ModType};

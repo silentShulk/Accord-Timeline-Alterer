@@ -14,7 +14,7 @@ use sevenz_rust::decompress_file;
 
 use unrar::Archive;
 
-use crate::data_config::{Mod, ModType};
+use crate::data_config::ModType;
 
 
 
