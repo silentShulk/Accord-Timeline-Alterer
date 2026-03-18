@@ -2,7 +2,7 @@ use std::fs::rename;
 
 use std::path::{PathBuf, Path};
 
-use crate::data_config::{Mod, ModType};
+use crate::data_config::{Mod, ModType, Config};
 
 use crate::installation_utilities::{
     InstallationError,
@@ -87,16 +87,23 @@ pub fn list_mods(mods: &Vec<Mod>) {
     }
 }
 
-pub fn enable_mod(game_path: &PathBuf, mod_to_enable: &Mod) -> Result<(), EnablingDisablingError>  {
+pub fn enable_mod(config: &mut Config, mod_name: String) -> Result<(), EnablingDisablingError>  {
+	let Some(mod_to_enable) = config.get_mod_by_name(&mod_name) else {
+		return Err(EnablingDisablingError::ModNotFound(mod_name))
+	};
+	
     for file in &mod_to_enable.files {
-        let Some(file_name) = file.file_name() else {
-            return Err(EnablingDisablingError::DotDotPath(file.to_path_buf()))
-        };
-        let Some(file_parent) = file.parent() else {
-            return Err(EnablingDisablingError::ParentlessOrEmptyPath(file.to_path_buf()))
-        };
-        
-        rename(file, file_parent.join(file_name))?;
+    	let Some(filename) = file.file_name() else {
+     		return Err(EnablingDisablingError::DotDotPath(file.to_path_buf()))
+     	};
+     	let Some(parent) = file.parent() else {
+      		return Err(EnablingDisablingError::ParentlessOrEmptyPath(file.to_path_buf()))
+      	};
+      	let Some(non_disabled_folder) = parent.parent() else {
+       		return Err(EnablingDisablingError::ParentlessOrEmptyPath(parent.to_path_buf()))
+       	};
+       
+      	rename(file, non_disabled_folder.join(filename));
     }
     
     Ok(())

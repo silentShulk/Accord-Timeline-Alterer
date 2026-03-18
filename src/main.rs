@@ -18,7 +18,6 @@ mod uninstallation_utilities;
 use uninstallation_utilities::ask_for_mod_name;
 
 mod enabling_disabling_utilities;
-use crate::enabling_disabling_utilities::check_if_mod_exists;
 
 
 
@@ -108,20 +107,22 @@ fn main() {
             list_mods(&current_config.mods);
         }
         else if action_id == "Enable a mod" {
-            let mod_to_enable = ask_for_mod_name().unwrap_or_else(|er| {
+            let name = ask_for_mod_name().unwrap_or_else(|er| {
                 eprintln!("There was a problem using the console for asking for the compressed mod folder. {}
                         ATA will now close...", er);
                 std::process::exit(1);
             });
             
-            if check_if_mod_exists(current_config, mod_to_enable) {
-                
-                enable_mod(&current_config.game_path, mod_to_enable);
-            }
-            
+            let mod_to_enable = current_config.get_mod_by_name(&name);
         }
         else if action_id == "Disable a mod" {
-            //disable_mod(&current_config.game_path, mod_to_disable)
+        	let mod_to_disable = ask_for_mod_name().unwrap_or_else(|er| {
+            	eprintln!("There was a problem using the console for asking for the compressed mod folder. {}
+                    	ATA will now close...", er);
+             	std::process::exit(1);
+         	});
+        
+            //disable_mod(&current_config.game_path, mod_to_disable);
         }
         else {
             println!("\"{}\" is not a valid action id (Select one of the options displayed in the menu)", action_id);

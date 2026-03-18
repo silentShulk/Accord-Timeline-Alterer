@@ -77,9 +77,19 @@ pub struct Config {
     pub mods: Vec<Mod>,
 }
 impl Config {
+	pub fn get_mod_by_name(&mut self, name: &String) -> Option<Mod> {
+		let mut named_mod = None;
+		
+		for installed_mod in self.mods.clone() {
+			if &installed_mod.name == name {
+				named_mod = Some(installed_mod);
+			}
+		}
+		
+		named_mod
+	}
 	// Load the config from file, or load a default one
-    pub fn load_config() -> Result<Self, ConfigInteractionError>
-    {
+    pub fn load_config() -> Result<Self, ConfigInteractionError> {
         let home_dir = var("HOME")?;
         let data_file_path = PathBuf::from(home_dir)
             .join(".config")
