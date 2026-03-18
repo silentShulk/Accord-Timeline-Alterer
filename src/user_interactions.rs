@@ -40,7 +40,7 @@ pub fn ask_user_action() -> Result<String, CommandError> {
         .spawn()
         .map_err(|er| CommandError::FailedSpawn(er))?;
     
-    let options = "Install a mod\nUninstall a mod\nList mods\nEnable a mod\nDisable a mod";
+    let options = "Install a mod\nUninstall a mod\nList mods\nEnable a mod\nDisable a mod\nClose ATA :(";
     
     let mut fzf_stdin = fzf_child.stdin.take()
         .ok_or(CommandError::MissingPipeHandle("fzf".to_string()))?;

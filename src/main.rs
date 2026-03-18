@@ -9,7 +9,7 @@ use user_interactions::{
 };
 
 mod features;
-use features::{install_mod, uninstall_mod, list_mods};
+use features::{install_mod, uninstall_mod, list_mods, enable_mod, disable_mod};
 
 mod installation_utilities;
 use installation_utilities::ask_for_mod_folder;
@@ -18,6 +18,7 @@ mod uninstallation_utilities;
 use uninstallation_utilities::ask_for_mod_name;
 
 mod enabling_disabling_utilities;
+use crate::enabling_disabling_utilities::check_if_mod_exists;
 
 
 
@@ -53,7 +54,7 @@ fn main() {
     });
 
     let mut action_id = String::from("");
-    while action_id != "0" {
+    while action_id != "Close ATA :(" {
         action_id = ask_user_action().unwrap_or_else(|er| {
             eprintln!("There has been a problem using the console to ask you what you want to do. {}
                     ATA will now close...", er);
@@ -61,7 +62,7 @@ fn main() {
         });
 
         // INSTALL A MOD
-        if action_id == "1" {
+        if action_id == "Install a mod" {
             let answered_path = ask_for_mod_folder().unwrap_or_else(|er| {
                 eprintln!("There was a problem using the console for asking for the compressed mod folder. {}
                         ATA will now close...", er);
@@ -83,7 +84,7 @@ fn main() {
             println!("MOD INSTALLED");   
         }
         // UNINSTALL A MOD
-        else if action_id == "2" {
+        else if action_id == "Uninstall a mod" {
             let mod_to_uninstall = ask_for_mod_name().unwrap_or_else(|er| {
                 eprintln!("There was a problem using the console for asking for the compressed mod folder. {}
                         ATA will now close...", er);
@@ -103,18 +104,31 @@ fn main() {
             })
         } 
         // PRINT THE LIST OF INSTALLED MODS
-        else if action_id == "3" {
+        else if action_id == "List mods" {
             list_mods(&current_config.mods);
         }
-        // EXIT THE PROGRAM
-        else if action_id == "0" {
-            println!("Happy Automata (ATA will now close...)");
-            std::process::exit(1);
+        else if action_id == "Enable a mod" {
+            let mod_to_enable = ask_for_mod_name().unwrap_or_else(|er| {
+                eprintln!("There was a problem using the console for asking for the compressed mod folder. {}
+                        ATA will now close...", er);
+                std::process::exit(1);
+            });
+            
+            if check_if_mod_exists(current_config, mod_to_enable) {
+                
+                enable_mod(&current_config.game_path, mod_to_enable);
+            }
+            
+        }
+        else if action_id == "Disable a mod" {
+            //disable_mod(&current_config.game_path, mod_to_disable)
         }
         else {
-            println!("\"{}\" is not a valid action id (input either 1, 2, 3 or 0)", action_id);
+            println!("\"{}\" is not a valid action id (Select one of the options displayed in the menu)", action_id);
         }
     }
+    
+    println!("Thank you for using ATA.\n\t\tHappy Automata :)")
 }
 
 
