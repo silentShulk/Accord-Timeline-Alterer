@@ -29,7 +29,7 @@ pub enum ConfigInteractionError {
 
 
 // The various types of mod that can be installed with ATA
-#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, Debug)]
 pub enum ModType {
     Textures,
     PlayerModels,
@@ -52,7 +52,7 @@ impl fmt::Display for ModType {
 }
 
 // Things to take note about a mod for both mod managing and informing the user
-#[derive(Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct Mod {
     pub name: String,           // Name of the mod given by the user
     pub files: Vec<PathBuf>,    // Files used by the mod (not the folder contaning, list of all files one by one)
@@ -68,6 +68,17 @@ impl Mod {
             mod_type,
         }
     }
+}
+impl fmt::Display for Mod {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		let mod_description = format!("Name: {}
+			Files location: {:?}
+			Enabled? {}
+			Mod Type: {}",
+			self.name, self.files[0].parent().unwrap(), if self.enabled {"Yes"} else {"No"}, self.mod_type);
+		
+		write!(f, "{}", mod_description)
+	}
 }
 
 // What to save in the data file
@@ -103,15 +114,13 @@ impl Config {
         Ok(contents)
     }
 	
-	pub fn save_new_mod(&mut self, new_mod: Mod) -> Result<(), ConfigInteractionError>{
-		self.mods.push(new_mod);
-		
+	pub fn save_new_mod(&mut self, new_mod: &Mod) -> Result<(), ConfigInteractionError>{
+		self.mods.push(new_mod.clone());
 		self.update_data_file()
 	}
 	
 	pub fn remove_mod(&mut self, index_to_remove: usize) -> Result<(), ConfigInteractionError> {
         self.mods.remove(index_to_remove);
-
 		self.update_data_file()
 	}       
 

@@ -3,21 +3,20 @@ use clap::Parser;
 mod data_config;
 use data_config::{Config};
 
+mod installation;
+mod uninstallation;
+mod installed_mod_managing;
+
+use installation::install_mod;
+use uninstallation::uninstall_mod;
+use installed_mod_managing::{list_mods, enable_mod, disable_mod};
+
 mod user_interactions;
 use user_interactions::{
-    ask_user_action
+    ask_user_action,
+    ask_for_mod_name,
+    ask_for_mod_folder
 };
-
-mod features;
-use features::{install_mod, uninstall_mod, list_mods, enable_mod, disable_mod};
-
-mod installation_utilities;
-use installation_utilities::ask_for_mod_folder;
-
-mod uninstallation_utilities;
-use uninstallation_utilities::ask_for_mod_name;
-
-mod enabling_disabling_utilities;
 
 
 
@@ -68,19 +67,14 @@ fn main() {
                 std::process::exit(1);
             });
 
-        	let installed_mod = install_mod(&current_config.game_path, &answered_path).unwrap_or_else(|er| {
+        	let installed_mod = install_mod(&mut current_config, &answered_path).unwrap_or_else(|er| {
              	eprintln!("There was a problem installing the mod. {}
                         ATA will now close...", er);
                	std::process::exit(1);
             });
          
-        	current_config.save_new_mod(installed_mod).unwrap_or_else(|er| {
-       			eprintln!("Therer was a problem adding the newly installed mod to the data file. {}
-          				ATA will now close...", er);
-                std::process::exit(1);
-         	});
-         
-            println!("MOD INSTALLED");   
+            println!("MOD INSTALLED");
+            println!("{:?}", installed_mod);
         }
         // UNINSTALL A MOD
         else if action_id == "Uninstall a mod" {
@@ -90,7 +84,7 @@ fn main() {
                 std::process::exit(1);
             });
             
-        	let uninstalled_mod_index = uninstall_mod(&current_config.mods, mod_to_uninstall).unwrap_or_else(|er| {
+        	let uninstalled_mod_index = uninstall_mod(&mut current_config, mod_to_uninstall).unwrap_or_else(|er| {
             	eprintln!("There was a problem uninstalling the mod. {}
                         ATA will now close...", er);
               	std::process::exit(1);
@@ -113,16 +107,16 @@ fn main() {
                 std::process::exit(1);
             });
             
-            let mod_to_enable = current_config.get_mod_by_name(&name);
+            enable_mod(&mut current_config, name);
         }
         else if action_id == "Disable a mod" {
-        	let mod_to_disable = ask_for_mod_name().unwrap_or_else(|er| {
+        	let name = ask_for_mod_name().unwrap_or_else(|er| {
             	eprintln!("There was a problem using the console for asking for the compressed mod folder. {}
                     	ATA will now close...", er);
              	std::process::exit(1);
          	});
         
-            //disable_mod(&current_config.game_path, mod_to_disable);
+            disable_mod(&mut current_config, name);
         }
         else {
             println!("\"{}\" is not a valid action id (Select one of the options displayed in the menu)", action_id);

@@ -1,13 +1,19 @@
-use std::{io::Write, process::{Command, Stdio}, string::FromUtf8Error};
+use std::io::{Write, stdout, stdin};
+
+use std::process::{Command, Stdio};
+
+use std::string::FromUtf8Error;
+
+use std::path::PathBuf;
 
 use thiserror::Error;
 
 
 
 #[derive(Error, Debug)]
-pub enum CommandError {
-    #[error("{0} process failed to spawn")]
-    FailedSpawn(std::io::Error),
+pub enum UserInteractionError {
+    #[error("{0} process failed to spawn. {1}")]
+    FailedSpawn(String, std::io::Error),
     
     #[error("{0} has no pipe handle")]
     MissingPipeHandle(String),
@@ -25,12 +31,18 @@ pub enum CommandError {
     CommandCrash(String, i32),
     
     #[error("Selection contained invalid UTF-8. {0}")]
-    InvalidUTF8InSelection(#[from] FromUtf8Error)
+    InvalidUTF8InSelection(#[from] FromUtf8Error),
+    
+    #[error("Couldn't flush stdout. {0}")]
+    StdoutFlush(std::io::Error),
+    
+    #[error("Couldn't read from stdin. {0}")]
+    StdinRead(std::io::Error),
 }
 
 
 
-pub fn ask_user_action() -> Result<String, CommandError> {
+pub fn ask_user_action() -> Result<String, UserInteractionError> {
     let mut fzf_child = Command::new("fzf")
         .arg("--prompt=What do you want to do? ")
         .arg("--height=10%")
@@ -38,27 +50,53 @@ pub fn ask_user_action() -> Result<String, CommandError> {
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
-        .map_err(|er| CommandError::FailedSpawn(er))?;
+        .map_err(|er| UserInteractionError::FailedSpawn("fzf".to_string(), er))?;
     
     let options = "Install a mod\nUninstall a mod\nList mods\nEnable a mod\nDisable a mod\nClose ATA :(";
     
     let mut fzf_stdin = fzf_child.stdin.take()
-        .ok_or(CommandError::MissingPipeHandle("fzf".to_string()))?;
+        .ok_or(UserInteractionError::MissingPipeHandle("fzf".to_string()))?;
     fzf_stdin.write_all(options.as_bytes())
-        .map_err(|er| CommandError::BufferWriting(er, options.to_string()))?;
+        .map_err(|er| UserInteractionError::BufferWriting(er, options.to_string()))?;
     
     let fzf_output = fzf_child.wait_with_output()
-        .map_err(|er| CommandError::ProcessOutputReading("fzf".to_string(), er))?;
+        .map_err(|er| UserInteractionError::ProcessOutputReading("fzf".to_string(), er))?;
 
     if !fzf_output.status.success() {
         if let Some(code) = fzf_output.status.code() {
-            return Err(CommandError::CommandCrash("fzf".to_string(), code))
+            return Err(UserInteractionError::CommandCrash("fzf".to_string(), code))
         } else {
-            return Err(CommandError::SignalKill("fzf".to_string()))
+            return Err(UserInteractionError::SignalKill("fzf".to_string()))
         }
     }
 
     let user_selection = String::from_utf8(fzf_output.stdout)?;
     
     return Ok(user_selection)
+}
+
+pub fn ask_for_mod_name() -> Result<String, UserInteractionError> {
+    println!("Enter the name of the mod to uninstall:");
+    print!("Mod name>> ");
+    stdout().flush().map_err(|er| {
+   		return UserInteractionError::StdoutFlush(er);
+    });
+    
+    let mut mod_name = String::new();
+    stdin().read_line(&mut mod_name).map_err(|er| {
+       		return UserInteractionError::StdinRead(er);
+        });
+    
+    Ok(mod_name)
+}
+
+pub fn ask_for_mod_folder() -> Result<PathBuf, UserInteractionError> {
+    println!("Insert the path to the compressed folder of the mod you downloaded\n\
+        IT HAS TO BE A COMPRESSED FOLDER (.zip, .7z, .rar)");
+    print!("Insert path>> ");
+    stdout().flush().map_err(|er| UserInteractionError::StdoutFlush(er))?;
+
+    let mut answer = String::new();
+    stdin().read_line(&mut answer).map_err(|er| UserInteractionError::StdinRead(er))?;
+    Ok(PathBuf::from(answer.trim()))
 }

@@ -14,7 +14,46 @@ use sevenz_rust::decompress_file;
 
 use unrar::Archive;
 
-use crate::data_config::ModType;
+use crate::data_config::{ModType, Mod, Config};
+
+
+
+pub fn install_mod(config: &mut Config, compressed_mod_folder_path: &Path) -> Result<Mod, InstallationError> {
+    // Check if it exists
+    if !compressed_mod_folder_path.exists() {
+        return Err(InstallationError::FileAccessing(compressed_mod_folder_path.to_path_buf()));
+    }
+    
+    // Ask for a name 
+    let answered_name = ask_mod_name()?;
+    
+    // Unzip the mod folder
+    let mut mod_folder_path = decompress_folder(&compressed_mod_folder_path)?;
+    
+    // Get the type of mod contained
+    let mod_data = get_mod_data(&mut mod_folder_path)?
+       	.ok_or(InstallationError::ModlessFolder(mod_folder_path.clone()))?;
+    
+    // Install the mod contained in the folder following the correct installation method
+    let installed_mod_files = match mod_data.0 {
+       	ModType::Textures => install_texture(mod_folder_path, &config.game_path)?,
+       	ModType::PlayerModels => install_player_model(mod_folder_path, &config.game_path)?,
+       	ModType::WeaponModels => install_weapon_model(mod_folder_path, &config.game_path)?,
+       	ModType::WorldModels => install_world_model(mod_folder_path, &config.game_path)?,
+        ModType::CutsceneReplacements => install_cutscene_replacements(mod_folder_path, &config.game_path)?,
+        ModType::ReshadePreset => install_reshade_preset(&mod_folder_path, &config.game_path)?,
+    };
+    let installed_mod = Mod::new(answered_name, installed_mod_files, true, mod_data.0);
+    
+    // Updates config
+   	config.save_new_mod(&installed_mod).unwrap_or_else(|er| {
+  		eprintln!("Therer was a problem adding the newly installed mod to the data file. {}
+				ATA will now close...", er);
+        std::process::exit(1);
+   	});
+    
+    Ok(installed_mod)
+}
 
 
 
@@ -77,22 +116,6 @@ pub enum InstallationError {
     ModlessFolder(PathBuf),
 }
 
-
-
-/* ------------- */
-/*   UTILITIES   */
-/* ------------- */
-
-pub fn ask_for_mod_folder() -> Result<PathBuf, InstallationError> {
-    println!("Insert the path to the compressed folder of the mod you downloaded\n\
-        IT HAS TO BE A COMPRESSED FOLDER (.zip, .7z, .rar)");
-    print!("Insert path>> ");
-    stdout().flush().map_err(|er| InstallationError::StdoutFlush(er))?;
-
-    let mut answer = String::new();
-    stdin().read_line(&mut answer).map_err(|er| InstallationError::StdinRead(er))?;
-    Ok(PathBuf::from(answer.trim()))
-}
 
 
 // DECOMPRESSING THE MOD FOLDER
