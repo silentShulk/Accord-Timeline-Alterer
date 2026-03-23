@@ -30,22 +30,22 @@ fn main() {
     /* ----------------------- */
 
     println!("Loading data file (~/.config/ATA/data.json)");
-    
+
     let mut current_config = Config::load_config()
     .unwrap_or_else(|err| {
         eprintln!("There was a problem accessing the data file (~/.config/ATA/data.json). {}\nConsider checking if the file is there and if it isn't corrupted.
                 ATA will now close...", err);
         std::process::exit(1);
     });
-    
+
     println!("Config file (~/.config/ATA/data.json) loaded!\n");
-    
+
 
 
     /* -------------------------------- */
     /*   STARTING ONE OF THE FEATURES   */
     /* -------------------------------- */
-    
+
     clearscreen::clear().unwrap_or_else(|er| {
    		eprintln!("There was a problem clearing the console screen. {}
      			ATA will now close...", er)
@@ -72,7 +72,7 @@ fn main() {
                         ATA will now close...", er);
                	std::process::exit(1);
             });
-         
+
             println!("MOD INSTALLED");
             println!("{:?}", installed_mod);
         }
@@ -83,19 +83,19 @@ fn main() {
                         ATA will now close...", er);
                 std::process::exit(1);
             });
-            
+
         	let uninstalled_mod_index = uninstall_mod(&mut current_config, mod_to_uninstall).unwrap_or_else(|er| {
             	eprintln!("There was a problem uninstalling the mod. {}
                         ATA will now close...", er);
               	std::process::exit(1);
             });
-         
+
             current_config.remove_mod(uninstalled_mod_index).unwrap_or_else(|er| {
                 eprintln!("There was a problem removing the newly installed mod to the data file. {}
                         ATA will now close...", er);
                 std::process::exit(1);
             })
-        } 
+        }
         // PRINT THE LIST OF INSTALLED MODS
         else if action_id == "List mods" {
             list_mods(&current_config.mods);
@@ -106,8 +106,12 @@ fn main() {
                         ATA will now close...", er);
                 std::process::exit(1);
             });
-            
-            enable_mod(&mut current_config, name);
+
+            enable_mod(&mut current_config, name).unwrap_or_else(|er| {
+                eprintln!("There was a problem enabling the mod. {}
+                        ATA will now close...", er);
+                std::process::exit(1);
+            });
         }
         else if action_id == "Disable a mod" {
         	let name = ask_for_mod_name().unwrap_or_else(|er| {
@@ -115,14 +119,18 @@ fn main() {
                     	ATA will now close...", er);
              	std::process::exit(1);
          	});
-        
-            disable_mod(&mut current_config, name);
+
+            disable_mod(&mut current_config, name).unwrap_or_else(|er| {
+                eprintln!("There was a problem enabling the mod. {}
+                        ATA will now close...", er);
+                std::process::exit(1);
+            });
         }
         else {
             println!("\"{}\" is not a valid action id (Select one of the options displayed in the menu)", action_id);
         }
     }
-    
+
     println!("Thank you for using ATA.\n\t\tHappy Automata :)")
 }
 

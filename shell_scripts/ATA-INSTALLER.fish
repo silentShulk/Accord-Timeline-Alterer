@@ -1,5 +1,18 @@
 #! /bin/fish
 
+function try
+    set -l output (eval $argv 2>&1)
+    set -l code $status
+
+    if test $code -ne 0
+        echo "Error running: $argv"
+        echo "  $output"
+        exit $code
+    end
+end
+
+
+
 printf "Please go read the documentation if you haven't already\n"
 
 # CHECK FOR ARGUMENT
@@ -23,23 +36,23 @@ set game_path $argv[1]
 
 
 # Creating directories
-echo "Creating directories in ~/.config and ~/.local"
-mkdir -p $HOME/.config/ATA
-mkdir -p $HOME/.local/share/ATA
-mkdir -p $HOME/.local/bin
+printf "\nCreating directories in ~/.local and ~/.config"
+try mkdir -p $HOME/.local/share/ATA
+try mkdir -p $HOME/.local/bin
+try mkdir -p $HOME/.config/ATA
 
 
 
 # Copying files into the newly created directories
-echo "Copying ATA files into ~/.local/share/ and ~/.local/bin"
-cp ./install-prerequisites.sh $HOME/.local/share/ATA
-cp ./target/release/ATA $HOME/.local/bin
+printf "\nCopying ATA files into ~/.local/share/ and ~/.local/bin"
+try cp ./install-prerequisites.sh $HOME/.local/share/ATA
+try cp ../target/release/ATA $HOME/.local/bin
 
 
 
 # Creating default data file
-echo "Creating data file in ~/.config"
-touch $HOME/.config/ATA/data.json
+printf "\nCreating data file in ~/.config"
+try touch $HOME/.config/ATA/data.json
 
 echo "{
   \"game_path\": \"$game_path\",
@@ -49,9 +62,10 @@ echo "{
 
 
 # Installing required modding files 
-echo "Running script to install files needed to mod the game"
-./install-prerequisites.fish
+printf "\nRunning script to install files needed to mod the game"
+./install-prerequisites.fish $game_path
 
 
-printf "\nInstallation complete, make sure ~/.local/bin is in your PATH
+
+printf "\n\nInstallation complete, make sure ~/.local/bin is in your PATH
 Do not touch the ATA folders inside ~/.config, ~/.local/share and ~/.local/bin\n"

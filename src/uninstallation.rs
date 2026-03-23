@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use thiserror::Error;
 
-use crate::data_config::{Mod, Config};
+use crate::data_config::Config;
 
 
 

@@ -80,12 +80,12 @@ pub fn ask_for_mod_name() -> Result<String, UserInteractionError> {
     print!("Mod name>> ");
     stdout().flush().map_err(|er| {
    		return UserInteractionError::StdoutFlush(er);
-    });
+    })?;
     
     let mut mod_name = String::new();
     stdin().read_line(&mut mod_name).map_err(|er| {
        		return UserInteractionError::StdinRead(er);
-        });
+    })?;
     
     Ok(mod_name)
 }

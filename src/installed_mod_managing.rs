@@ -57,7 +57,7 @@ pub fn enable_mod(config: &mut Config, mod_name: String) -> Result<(), EnablingD
        		return Err(EnablingDisablingError::ParentlessOrEmptyPath(parent.to_path_buf()))
        	};
        
-      	rename(file, enabled_folder.join(filename));
+      	rename(file, enabled_folder.join(filename))?;
     }
     
     Ok(())
@@ -77,7 +77,7 @@ pub fn disable_mod(config: &mut Config, mod_name: String) -> Result<(), Enabling
       	};
       	let disabled_folder = parent.join(".disabled/");
        
-      	rename(file, disabled_folder.join(filename));
+      	rename(file, disabled_folder.join(filename))?;
     }
     
     Ok(())
