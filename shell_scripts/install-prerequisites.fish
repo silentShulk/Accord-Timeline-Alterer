@@ -13,7 +13,7 @@ set game_dir "$argv[1]"
 
 
 # Installing Microsoft C++ tools
-printf "\nInstalling files needed to mod the game"
+printf "\nInstalling files needed to mod the game\n"
 wine ../bin/VC_redist.x64.exe     # 64 bits
 wine ../bin/VC_redist.x86.exe     # 32 bits
 
@@ -28,7 +28,7 @@ cp ../lib/d3d11.dll "$game_dir"                                          # Put S
 
 
 # Launch game
-printf "\nLaunching the game"
+printf "\nLaunching the game\n"
 steam steam://rungameid/524220
 
 

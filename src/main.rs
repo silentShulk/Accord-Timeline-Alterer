@@ -1,5 +1,3 @@
-use clap::Parser;
-
 mod data_config;
 use data_config::{Config};
 
@@ -17,6 +15,8 @@ use user_interactions::{
     ask_for_mod_name,
     ask_for_mod_folder
 };
+
+use clap::Parser;
 
 
 
@@ -150,9 +150,9 @@ fn main() {
 
 #[derive(Parser)]
 #[command(
-    name = "NAMHL",
+    name = "ATA",
     version = "0.01",
-    about = "The Nier Automata Mod Helper for Linux"
+    about = "Accord's Timeline Alterer, the NieR Automata mod manager for Linux"
 )]
 struct Args {
     folder_path: String,
