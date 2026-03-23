@@ -127,6 +127,11 @@ fn main() {
             });
         }
         else {
+            clearscreen::clear().unwrap_or_else(|er| {
+           		eprintln!("There was a problem clearing the console screen. {}
+             			ATA will now close...", er)
+            });
+
             println!("\"{}\" is not a valid action id (Select one of the options displayed in the menu)", action_id);
         }
     }
