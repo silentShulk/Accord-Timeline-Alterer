@@ -79,7 +79,7 @@ pub enum InstallationError {
     
     // Decompression
     #[error("The received compressed folder ({0}) uses an unsupported extension")]
-    UnsupportedCompression(String),
+    UnsupportedCompression(PathBuf),
     
     #[error("Couldn't access {0}, check if it exists")]
     FileAccessing(PathBuf),
@@ -121,12 +121,19 @@ pub enum InstallationError {
 // DECOMPRESSING THE MOD FOLDER
 pub fn decompress_folder(compressed_mod_folder: &Path) -> Result<PathBuf, InstallationError> {
     let extension = get_file_extension(compressed_mod_folder)?;
+   
+   	let folder_name = compressed_mod_folder.file_stem()
+           .ok_or(InstallationError::NamelessArchive(compressed_mod_folder.to_path_buf()))?;
+	let mod_folder_parent = compressed_mod_folder.parent()
+		.ok_or(InstallationError::ParentlessArchive(compressed_mod_folder.to_path_buf()))?;
+    let target_folder = mod_folder_parent
+           .join(folder_name);
     
     match extension {
-        ".zip" => decompress_zip(compressed_mod_folder),
-        ".7z" => decompress_7z(compressed_mod_folder),
-        ".rar" => decompress_rar(compressed_mod_folder),
-        _ => Err(InstallationError::UnsupportedCompression(extension.to_string()))
+        "zip" => decompress_zip(compressed_mod_folder, target_folder),
+        "7z" => decompress_7z(compressed_mod_folder, target_folder),
+        "rar" => decompress_rar(compressed_mod_folder, target_folder),
+        _ => Err(InstallationError::UnsupportedCompression(compressed_mod_folder.to_path_buf())),
     }
 }
 
@@ -141,55 +148,34 @@ fn get_file_extension(path: &Path) -> Result<&str, InstallationError> {
     Ok(extension_str)
 }
 
-fn decompress_zip(zipped_mod_folder: &Path) -> Result<PathBuf, InstallationError> {
-	let folder_name = zipped_mod_folder.file_stem()
-        .ok_or(InstallationError::NamelessArchive(zipped_mod_folder.to_path_buf()))?;
-	let mod_folder_parent = zipped_mod_folder.parent()
-		.ok_or(InstallationError::ParentlessArchive(zipped_mod_folder.to_path_buf()))?;
-    let extracted_folder = mod_folder_parent
-        .join(folder_name);
-	
+fn decompress_zip(zipped_mod_folder: &Path, zip_extraction_folder: PathBuf) -> Result<PathBuf, InstallationError> {
     let zip_file = File::open(zipped_mod_folder)
         .map_err(|_| InstallationError::FileAccessing(zipped_mod_folder.to_path_buf()))?;
     let mut zip_archive = ZipArchive::new(zip_file)?;
     
-    zip_archive.extract(mod_folder_parent)?;
+    zip_archive.extract(&zip_extraction_folder)?;
     
-    Ok(extracted_folder)
+    Ok(zip_extraction_folder)
 }
 
-fn decompress_7z(sevzipped_mod_folder: &Path) -> Result<PathBuf, InstallationError> {
-	let folder_name = sevzipped_mod_folder.file_stem()
-        .ok_or(InstallationError::NamelessArchive(sevzipped_mod_folder.to_path_buf()))?;
-	let mod_folder_parent = sevzipped_mod_folder.parent()
-		.ok_or(InstallationError::ParentlessArchive(sevzipped_mod_folder.to_path_buf()))?;
-	let extracted_folder = mod_folder_parent
-        .join(folder_name);
+fn decompress_7z(sevzipped_mod_folder: &Path, sevzip_extraction_folder: PathBuf) -> Result<PathBuf, InstallationError> {
+	decompress_file(sevzipped_mod_folder, &sevzip_extraction_folder)?;
 	
-	decompress_file(sevzipped_mod_folder, mod_folder_parent)?;
-	
-	Ok(extracted_folder)
+	Ok(sevzip_extraction_folder)
 }
 
-fn decompress_rar(rared_mod_folder: &Path) -> Result<PathBuf, InstallationError> {
-	let folder_name = rared_mod_folder.file_stem()
-        .ok_or(InstallationError::NamelessArchive(rared_mod_folder.to_path_buf()))?;
-	let mod_folder_parent = rared_mod_folder.parent()
-		.ok_or(InstallationError::ParentlessArchive(rared_mod_folder.to_path_buf()))?;
-	let extracted_folder = mod_folder_parent
-        .join(folder_name);
-	
+fn decompress_rar(rared_mod_folder: &Path, rar_extraction_folder: PathBuf) -> Result<PathBuf, InstallationError> {
 	let mut rar_archive = Archive::new(rared_mod_folder).open_for_processing()?;
 	
 	while let Some(header) = rar_archive.read_header()? {
   		rar_archive = if header.entry().is_file() {
-        	header.extract_to(mod_folder_parent)?
+        	header.extract_to(&rar_extraction_folder)?
     	} else {
         	header.skip()?
      	};
 	}
 	
-    Ok(extracted_folder)
+    Ok(rar_extraction_folder)
 }
 
 
