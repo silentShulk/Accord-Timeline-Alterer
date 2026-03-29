@@ -38,6 +38,18 @@ pub enum ModType {
     CutsceneReplacements,
     ReshadePreset,
 }
+impl ModType {
+    pub fn get_corresponding_folder(&self) -> String{
+        match self {
+            ModType::Textures => String::from("SK_Res/inject/textures/"),
+            ModType::PlayerModels => String::from("data/pl/"),
+            ModType::WeaponModels => String::from("data/wp/"),
+            ModType::WorldModels => String::from("data/bg/"),
+            ModType::CutsceneReplacements => String::from("data/movie/"),
+            ModType::ReshadePreset => String::from("idk")
+        }
+    }
+}
 impl fmt::Display for ModType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -71,11 +83,8 @@ impl Mod {
 }
 impl fmt::Display for Mod {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		let mod_description = format!("Name: {}
-			Files location: {:?}
-			Enabled? {}
-			Mod Type: {}",
-			self.name, self.files[0].parent().unwrap(), if self.enabled {"Yes"} else {"No"}, self.mod_type);
+		let mod_description = format!("Name: {}\n\tFiles location: {:?}\n\tEnabled? {}\n\tMod Type: {}",
+			self.name, self.mod_type.get_corresponding_folder(), if self.enabled {"Yes"} else {"No"}, self.mod_type);
 		
 		write!(f, "{}", mod_description)
 	}
@@ -131,7 +140,7 @@ impl Config {
          	.join("ATA")
           	.join("data.json");
     
-    	let data_file = File::open(data_file_path)?;
+    	let data_file = File::create(data_file_path)?;
     	serde_json::to_writer_pretty(data_file, &self)?;
      
      	Ok(())

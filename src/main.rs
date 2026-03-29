@@ -73,8 +73,8 @@ fn main() {
                	std::process::exit(1);
             });
 
-            println!("MOD INSTALLED");
-            println!("{:?}", installed_mod);
+            println!("\nMOD INSTALLED");
+            println!("{}", installed_mod);
         }
         // UNINSTALL A MOD
         else if action_id == "Uninstall a mod" {
