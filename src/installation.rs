@@ -35,14 +35,8 @@ pub fn install_mod(config: &mut Config, compressed_mod_folder_path: &Path) -> Re
        	.ok_or(InstallationError::ModlessFolder(mod_folder_path.clone()))?;
 
     // Install the mod contained in the folder following the correct installation method
-    match mod_data.0 {
-       	ModType::Textures => install_texture(&mod_data.1, &config.game_path)?,
-       	ModType::PlayerModels => install_player_model(&mod_data.1, &config.game_path)?,
-       	ModType::WeaponModels => install_weapon_model(&mod_data.1, &config.game_path)?,
-       	ModType::WorldModels => install_world_model(&mod_data.1, &config.game_path)?,
-        ModType::CutsceneReplacements => install_cutscene_replacements(&mod_data.1, &config.game_path)?,
-        ModType::ReshadePreset => install_reshade_preset(&mod_data.1, &config.game_path)?,
-    };
+    install(&mod_data.0, &mod_data.1)?;
+    
     let installed_mod = Mod::new(answered_name, mod_data.1, true, mod_data.0);
 
     // Updates config
@@ -281,45 +275,10 @@ fn copy_mod_files(mod_files: &Vec<PathBuf>, destination_folder_path: PathBuf) ->
 /*   INSTALLATION METHODS   */
 /* ------------------------ */
 
-pub fn install_texture(dss_files: &Vec<PathBuf>, game_path: &Path) -> Result<(), InstallationError> {
-    let texture_mods_folder = game_path.join("SK_Res/inject/textures");
-
-    copy_mod_files(dss_files, texture_mods_folder)?;
-
-    Ok(())
-}
-
-pub fn install_player_model(dtt_dat_files: &Vec<PathBuf>, game_path: &Path) -> Result<(), InstallationError>  {
-    let pl_mods_folder = game_path.join("data/pl");
-
-    copy_mod_files(dtt_dat_files, pl_mods_folder)?;
-
-    Ok(())
-}
-pub fn install_weapon_model(dtt_dat_files: &Vec<PathBuf>, game_path: &Path) -> Result<(), InstallationError> {
-    let wp_mods_folder = game_path.join("data/wp");
-
-    copy_mod_files(dtt_dat_files, wp_mods_folder)?;
-
-    Ok(())
-}
-
-pub fn install_world_model(dtt_dat_files: &Vec<PathBuf>, game_path: &Path) -> Result<(), InstallationError> {
-    let bg_mods_folder = game_path.join("data/bg");
-
-    copy_mod_files(dtt_dat_files, bg_mods_folder)?;
-
-    Ok(())
-}
-
-pub fn install_cutscene_replacements(usm_files: &Vec<PathBuf>, game_path: &Path) -> Result<(), InstallationError> {
-    let cutscene_mods_folder = game_path.join("data/movie");
-
-    copy_mod_files(usm_files, cutscene_mods_folder)?;
-
-    Ok(())
-}
-
-pub fn install_reshade_preset(preset_files: &Vec<PathBuf>, game_path: &Path) -> Result<(), InstallationError> {
+pub fn install(mod_type: &ModType, mod_files: &Vec<PathBuf>) -> Result<(), InstallationError> {
+    let installation_folder = mod_type.get_corresponding_folder();
+    
+    copy_mod_files(mod_files, PathBuf::from(installation_folder))?;
+    
     Ok(())
 }
