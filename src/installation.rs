@@ -228,15 +228,15 @@ pub fn get_mod_data(mod_folder_path: &Path) -> Result<Option<(ModType, Vec<PathB
                     println!("\"{}\" ends in .. (parent directory) or . (current directory), skipping", entry_path.display());
                     continue;
                 };
-                match name.to_str() {
-                    Some("pl") => Some(ModType::PlayerModels),
-                    Some("wp") => Some(ModType::WeaponModels),
-                    Some("bg") => Some(ModType::WorldModels),
-                    Some(_) => None,
-                    None => {
-                        println!("\"{}\" has invalid Unicode, skipping", entry_path.display());
-                        continue;
-                    }
+                let Some(name_str) = name.to_str() else {
+                	println!("\"{}\" conatins invalid UTF-8 in its name, skipping", entry_path.display());
+                	continue;
+                };
+                match &name_str[0..2] {
+                    "pl" => Some(ModType::PlayerModels),
+                    "wp" => Some(ModType::WeaponModels),
+                    "bg" => Some(ModType::WorldModels),
+                    _ => None,
                 }
             }
             "usm" => Some(ModType::CutsceneReplacements),
@@ -247,7 +247,7 @@ pub fn get_mod_data(mod_folder_path: &Path) -> Result<Option<(ModType, Vec<PathB
     for path in files_to_remove {
         remove_file(&path).map_err(|er| InstallationError::FileRemoval(path.clone(), er))?;
     }
-
+    
     Ok(mod_contained.zip(mod_files))
 }
 
