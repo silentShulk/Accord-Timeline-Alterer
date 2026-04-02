@@ -35,7 +35,7 @@ pub fn install_mod(config: &mut Config, compressed_mod_folder_path: &Path) -> Re
        	.ok_or(InstallationError::ModlessFolder(mod_folder_path.clone()))?;
 
     // Install the mod contained in the folder following the correct installation method
-    install(&mod_data.0, &mod_data.1)?;
+    install(&mod_data.0, &mod_data.1, &config.game_path)?;
     
     let installed_mod = Mod::new(answered_name, mod_data.1, true, mod_data.0);
 
@@ -275,8 +275,8 @@ fn copy_mod_files(mod_files: &Vec<PathBuf>, destination_folder_path: PathBuf) ->
 /*   INSTALLATION METHODS   */
 /* ------------------------ */
 
-pub fn install(mod_type: &ModType, mod_files: &Vec<PathBuf>) -> Result<(), InstallationError> {
-    let installation_folder = mod_type.get_corresponding_folder();
+pub fn install(mod_type: &ModType, mod_files: &Vec<PathBuf>, game_path: &PathBuf) -> Result<(), InstallationError> {
+    let installation_folder = game_path.join(mod_type.get_corresponding_folder());
     
     copy_mod_files(mod_files, PathBuf::from(installation_folder))?;
     
