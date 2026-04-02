@@ -50,13 +50,18 @@ fn main() {
    		eprintln!("There was a problem clearing the console screen. {}
      			ATA will now close...", er)
     });
-
+    
     let mut action_id = String::from("");
     while action_id != "Close ATA :(" {
         action_id = ask_user_action().unwrap_or_else(|er| {
             eprintln!("There has been a problem using the console to ask you what you want to do. {}
                     ATA will now close...", er);
             std::process::exit(1);
+        });
+        
+        clearscreen::clear().unwrap_or_else(|er| {
+       		eprintln!("There was a problem clearing the console screen. {}
+         			ATA will now close...", er)
         });
 
         // INSTALL A MOD
