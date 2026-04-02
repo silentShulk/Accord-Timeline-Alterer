@@ -14,8 +14,8 @@ set game_dir "$argv[1]"
 
 # Installing Microsoft C++ tools
 printf "\nInstalling files needed to mod the game\n"
-wine ../bin/VC_redist.x64.exe     # 64 bits
-wine ../bin/VC_redist.x86.exe     # 32 bits
+wine ../bin/VC_redist.x64.exe > /dev/null 2>&1    # 64 bits
+wine ../bin/VC_redist.x86.exe > /dev/null 2>&1    # 32 bits
 
 
 
