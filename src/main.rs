@@ -126,7 +126,7 @@ fn main() {
          	});
 
             disable_mod(&mut current_config, name).unwrap_or_else(|er| {
-                eprintln!("There was a problem enabling the mod. {}
+                eprintln!("There was a problem disabling the mod. {}
                         ATA will now close...", er);
                 std::process::exit(1);
             });

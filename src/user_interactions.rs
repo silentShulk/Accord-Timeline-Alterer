@@ -87,7 +87,7 @@ pub fn ask_for_mod_name() -> Result<String, UserInteractionError> {
        		return UserInteractionError::StdinRead(er);
     })?;
 
-    Ok(mod_name)
+    Ok(mod_name.trim().to_string())
 }
 
 pub fn ask_for_mod_folder() -> Result<PathBuf, UserInteractionError> {
