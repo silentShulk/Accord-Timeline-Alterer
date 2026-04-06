@@ -35,6 +35,32 @@ game_path=$1
 
 
 
+# Checking if FZF is installed
+if ! command -v fzf &>/dev/null; then
+    printf "\nFZF required but not installed"
+    
+    package_manager="pacman"
+    for pm in apt dnf pacman brew; do
+        if command -v $pm &>/dev/null; then
+            package_manager=$pm
+            break
+        fi
+    done
+    
+    case $package_manager in
+        pacman)
+            sudo pacman -S --noconfirm fzf ;;
+        apt)
+            sudo apt install -y fzf ;;
+        dnf)
+            sudo dnf install -y fzf ;;
+        brew)
+            brew install fzf ;;
+    esac
+fi
+
+
+
 # Creating directories
 printf "\nCreating directories in ~/.local and ~/.config"
 try mkdir -p $HOME/.local/share/ATA
