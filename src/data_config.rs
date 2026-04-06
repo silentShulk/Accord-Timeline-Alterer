@@ -97,17 +97,10 @@ pub struct Config {
     pub mods: Vec<Mod>,
 }
 impl Config {
-	pub fn get_mod_by_name(&mut self, name: &String) -> Option<Mod> {
-		let mut named_mod = None;
-		
-		for installed_mod in self.mods.clone() {
-			if &installed_mod.name == name {
-				named_mod = Some(installed_mod);
-			}
-		}
-		
-		named_mod
-	}
+    pub fn get_mod_by_name(&mut self, name: &str) -> Option<&mut Mod> {
+        self.mods.iter_mut().find(|m| m.name == name)
+    }
+    
 	// Load the config from file, or load a default one
     pub fn load_config() -> Result<Self, ConfigInteractionError> {
         let home_dir = var("HOME")?;

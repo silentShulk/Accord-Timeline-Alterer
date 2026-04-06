@@ -35,9 +35,9 @@ pub fn install_mod(config: &mut Config, compressed_mod_folder_path: &Path) -> Re
        	.ok_or(InstallationError::ModlessFolder(mod_folder_path.clone()))?;
 
     // Install the mod contained in the folder following the correct installation method
-    install(&mod_data.0, &mod_data.1, &config.game_path)?;
+    let mod_files =install(&mod_data.0, &mod_data.1, &config.game_path)?;
     
-    let installed_mod = Mod::new(answered_name, mod_data.1, true, mod_data.0);
+    let installed_mod = Mod::new(answered_name, mod_files, true, mod_data.0);
 
     // Updates config
    	config.save_new_mod(&installed_mod)
@@ -253,20 +253,24 @@ pub fn get_mod_data(mod_folder_path: &Path) -> Result<Option<(ModType, Vec<PathB
 
 
 
-fn copy_mod_files(mod_files: &Vec<PathBuf>, destination_folder_path: PathBuf) -> Result<(), InstallationError> {
+fn copy_mod_files(mod_files: &Vec<PathBuf>, destination_folder_path: PathBuf) -> Result<Vec<PathBuf>, InstallationError> {
     create_dir_all(&destination_folder_path)
         .map_err(|er| InstallationError::FolderCreation(destination_folder_path.clone(), er))?;
 
+    let mut copied_files: Vec<PathBuf> = vec![];
     for file in mod_files {
        	let Some(filename) = file.file_name() else {
         		return Err(InstallationError::DotDotPath(file.to_path_buf()))
         };
         
-        copy(file, &destination_folder_path.join(filename))
+        let copied_file = destination_folder_path.join(filename); 
+        copy(file, &copied_file)
             .map_err(|er| InstallationError::FileCopying(file.as_path().to_path_buf(), destination_folder_path.clone(), er))?;
+        
+        copied_files.push(copied_file);
     }
 
-    Ok(())
+    Ok(copied_files)
 }
 
 
@@ -275,10 +279,10 @@ fn copy_mod_files(mod_files: &Vec<PathBuf>, destination_folder_path: PathBuf) ->
 /*   INSTALLATION METHODS   */
 /* ------------------------ */
 
-pub fn install(mod_type: &ModType, mod_files: &Vec<PathBuf>, game_path: &PathBuf) -> Result<(), InstallationError> {
+pub fn install(mod_type: &ModType, mod_files: &Vec<PathBuf>, game_path: &PathBuf) -> Result<Vec<PathBuf>, InstallationError> {
     let installation_folder = game_path.join(mod_type.get_corresponding_folder());
     
-    copy_mod_files(mod_files, PathBuf::from(installation_folder))?;
+    let installed_files = copy_mod_files(mod_files, PathBuf::from(installation_folder))?;
     
-    Ok(())
+    Ok(installed_files)
 }

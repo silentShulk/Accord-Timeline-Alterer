@@ -112,11 +112,13 @@ fn main() {
                 std::process::exit(1);
             });
 
-            enable_mod(&mut current_config, name).unwrap_or_else(|er| {
+            let enabled_mod = enable_mod(&mut current_config, name).unwrap_or_else(|er| {
                 eprintln!("There was a problem enabling the mod. {}
                         ATA will now close...", er);
                 std::process::exit(1);
             });
+            
+            println!("\nENABLED: {}", enabled_mod);
         }
         else if action_id == "Disable a mod" {
         	let name = ask_for_mod_name().unwrap_or_else(|er| {
@@ -125,11 +127,13 @@ fn main() {
              	std::process::exit(1);
          	});
 
-            disable_mod(&mut current_config, name).unwrap_or_else(|er| {
+            let disabled_mod = disable_mod(&mut current_config, name).unwrap_or_else(|er| {
                 eprintln!("There was a problem disabling the mod. {}
                         ATA will now close...", er);
                 std::process::exit(1);
             });
+            
+            println!("\nDISABLED: {}", disabled_mod);
         }
         else {
             clearscreen::clear().unwrap_or_else(|er| {
