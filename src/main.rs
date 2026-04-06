@@ -135,7 +135,7 @@ fn main() {
             
             println!("\nDISABLED: {}", disabled_mod);
         }
-        else {
+        else if action_id != "Close ATA :(" {
             clearscreen::clear().unwrap_or_else(|er| {
            		eprintln!("There was a problem clearing the console screen. {}
              			ATA will now close...", er)

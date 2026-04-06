@@ -58,6 +58,7 @@ pub fn ask_user_action() -> Result<String, UserInteractionError> {
         .ok_or(UserInteractionError::MissingPipeHandle("fzf".to_string()))?;
     fzf_stdin.write_all(options.as_bytes())
         .map_err(|er| UserInteractionError::BufferWriting(er, options.to_string()))?;
+    drop(fzf_stdin);
 
     let fzf_output = fzf_child.wait_with_output()
         .map_err(|er| UserInteractionError::ProcessOutputReading("fzf".to_string(), er))?;
