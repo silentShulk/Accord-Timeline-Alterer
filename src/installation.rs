@@ -1,7 +1,5 @@
 use std::fs::{File, copy, create_dir_all, remove_file};
 
-use std::io::{stdin, stdout, Write};
-
 use std::path::{PathBuf, Path};
 
 use thiserror::Error;
@@ -18,14 +16,11 @@ use crate::data_config::{Config, ConfigInteractionError, Mod, ModType};
 
 
 
-pub fn install_mod(config: &mut Config, compressed_mod_folder_path: &Path) -> Result<Mod, InstallationError> {
+pub fn install_mod(config: &mut Config, compressed_mod_folder_path: &Path, answered_name: String) -> Result<Mod, InstallationError> {
     // Check if it exists
     if !compressed_mod_folder_path.exists() {
         return Err(InstallationError::FileAccessing(compressed_mod_folder_path.to_path_buf()));
     }
-
-    // Ask for a name
-    let answered_name = ask_mod_name()?;
 
     // Unzip the mod folder
     let mut mod_folder_path = decompress_folder(&compressed_mod_folder_path)?;
@@ -54,13 +49,6 @@ pub fn install_mod(config: &mut Config, compressed_mod_folder_path: &Path) -> Re
 
 #[derive(Error, Debug)]
 pub enum InstallationError {
-    // Console interaction
-    #[error("Couldn't flush stdout. {0}")]
-    StdoutFlush(std::io::Error),
-
-    #[error("Couldn't read from stdin. {0}")]
-    StdinRead(std::io::Error),
-
     // Extension Reading
     #[error("{0} is an an extensionless file, it will be skipped")]
     ExtensionlessFile(PathBuf),
@@ -176,18 +164,6 @@ fn decompress_rar(rared_mod_folder: &Path, rar_extraction_folder: PathBuf) -> Re
 	}
 
     Ok(rar_extraction_folder)
-}
-
-
-
-pub fn ask_mod_name() -> Result<String, InstallationError> {
-	println!("\nInsert name of the mod that you are installing (choose anything you want, will be used as identifier)");
-	print!("Name: ");
-	stdout().flush().map_err(|er| InstallationError::StdoutFlush(er))?;
-
-	let mut answer = String::new();
-	stdin().read_line(&mut answer).map_err(|er| InstallationError::StdinRead(er))?;
-	Ok(answer.trim().to_string())
 }
 
 

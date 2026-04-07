@@ -8,6 +8,10 @@ use std::path::PathBuf;
 
 use thiserror::Error;
 
+use inquire::autocompletion::{Autocomplete, Replacement};
+use inquire::{InquireError, Text};
+use inquire::prompt_text;
+
 
 
 #[derive(Error, Debug)]
@@ -38,7 +42,42 @@ pub enum UserInteractionError {
 
     #[error("Couldn't read from stdin. {0}")]
     StdinRead(std::io::Error),
+    
+    #[error("{0}")]
+    InquirePrompt(#[from] InquireError)
 }
+
+// #[derive(Clone, Default)]
+// struct PathAutocomplete;
+// impl Autocomplete for PathAutocomplete {
+//     fn get_suggestions(&mut self, input: &str) -> Result<Vec<String>, inquire::CustomUserError> {
+//         let path = std::path::Path::new(input);
+//         let dir = if path.is_dir() { path } else { path.parent().unwrap_or(std::path::Path::new(".")) };
+        
+//         let mut suggestions = Vec::new();
+//         if let Ok(entries) = fs::read_dir(dir) {
+//             for entry in entries.flatten() {
+//                 let path_buf = entry.path();
+//                 let path_str = path_buf.to_string_lossy();
+                
+//                 // Filter logic: Show directories OR specific archive types
+//                 if path_buf.is_dir() || 
+//                    path_str.ends_with(".zip") || 
+//                    path_str.ends_with(".7z") || 
+//                    path_str.ends_with(".rar") {
+//                     if path_str.starts_with(input) {
+//                         suggestions.push(path_str.into_owned());
+//                     }
+//                 }
+//             }
+//         }
+//         Ok(suggestions)
+//     }
+
+//     fn get_completion(&mut self, _input: &str, highlighted: Option<String>) -> Result<Replacement, inquire::CustomUserError> {
+//         Ok(highlighted.map(Replacement::Some).unwrap_or(Replacement::None))
+//     }
+// }
 
 
 
@@ -76,24 +115,28 @@ pub fn ask_user_action() -> Result<String, UserInteractionError> {
     Ok(user_selection.trim().to_string())
 }
 
+
+pub fn ask_user_name_for_mod() -> Result<String, UserInteractionError> {
+    let name_for_mod = prompt_text("Select an identifier for this mod");
+    
+    match name_for_mod {
+        Ok(name) => Ok(name.trim().to_string()),
+        Err(er) => Err(UserInteractionError::InquirePrompt(er))
+    }
+}
+
 pub fn ask_for_mod_name() -> Result<String, UserInteractionError> {
-    println!("Enter the name of the mod:");
-    print!("Mod name>> ");
-    stdout().flush().map_err(|er| {
-   		return UserInteractionError::StdoutFlush(er);
-    })?;
-
-    let mut mod_name = String::new();
-    stdin().read_line(&mut mod_name).map_err(|er| {
-       		return UserInteractionError::StdinRead(er);
-    })?;
-
-    Ok(mod_name.trim().to_string())
+    let mod_name = prompt_text("Insert the name of a mod");
+    
+    match mod_name {
+        Ok(name) => Ok(name.trim().to_string()),
+        Err(er) => Err(UserInteractionError::InquirePrompt(er))
+    }
 }
 
 pub fn ask_for_mod_folder() -> Result<PathBuf, UserInteractionError> {
     println!("Insert the path to the compressed folder of the mod you downloaded\n\
-        IT HAS TO BE A COMPRESSED FOLDER (.zip, .7z, .rar)");
+        IT HAS TO BE A COMPRESSED FOLDER (.zip/.7z/.rar)");
     print!("Insert path>> ");
     stdout().flush().map_err(|er| UserInteractionError::StdoutFlush(er))?;
 

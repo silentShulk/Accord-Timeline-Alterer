@@ -18,6 +18,8 @@ use user_interactions::{
 
 use clap::Parser;
 
+use crate::user_interactions::ask_user_name_for_mod;
+
 
 
 fn main() {
@@ -71,8 +73,14 @@ fn main() {
                         ATA will now close...", er);
                 std::process::exit(1);
             });
+            
+            let answered_name = ask_user_name_for_mod().unwrap_or_else(|er| {
+                eprintln!("There was a problem using the console for asking for the compressed mod folder. {}
+                        ATA will now close...", er);
+                std::process::exit(1);
+            });
 
-        	let installed_mod = install_mod(&mut current_config, &answered_path).unwrap_or_else(|er| {
+        	let installed_mod = install_mod(&mut current_config, &answered_path, answered_name).unwrap_or_else(|er| {
              	eprintln!("There was a problem installing the mod. {}
                         ATA will now close...", er);
                	std::process::exit(1);
