@@ -1,16 +1,14 @@
-use std::io::{Write, stdout, stdin};
-
-use std::process::{Command, Stdio};
-
-use std::string::FromUtf8Error;
-
+use std::fs;
 use std::path::PathBuf;
-
-use thiserror::Error;
+use std::process::{Command, Stdio};
+use std::string::FromUtf8Error;
 
 use inquire::autocompletion::{Autocomplete, Replacement};
 use inquire::{InquireError, Text};
 use inquire::prompt_text;
+use std::io::Write;
+
+use thiserror::Error;
 
 
 
@@ -37,47 +35,78 @@ pub enum UserInteractionError {
     #[error("Selection contained invalid UTF-8. {0}")]
     InvalidUTF8InSelection(#[from] FromUtf8Error),
 
-    #[error("Couldn't flush stdout. {0}")]
-    StdoutFlush(std::io::Error),
-
-    #[error("Couldn't read from stdin. {0}")]
-    StdinRead(std::io::Error),
-    
     #[error("{0}")]
-    InquirePrompt(#[from] InquireError)
+    InquirePrompt(#[from] InquireError),
 }
 
-// #[derive(Clone, Default)]
-// struct PathAutocomplete;
-// impl Autocomplete for PathAutocomplete {
-//     fn get_suggestions(&mut self, input: &str) -> Result<Vec<String>, inquire::CustomUserError> {
-//         let path = std::path::Path::new(input);
-//         let dir = if path.is_dir() { path } else { path.parent().unwrap_or(std::path::Path::new(".")) };
-        
-//         let mut suggestions = Vec::new();
-//         if let Ok(entries) = fs::read_dir(dir) {
-//             for entry in entries.flatten() {
-//                 let path_buf = entry.path();
-//                 let path_str = path_buf.to_string_lossy();
-                
-//                 // Filter logic: Show directories OR specific archive types
-//                 if path_buf.is_dir() || 
-//                    path_str.ends_with(".zip") || 
-//                    path_str.ends_with(".7z") || 
-//                    path_str.ends_with(".rar") {
-//                     if path_str.starts_with(input) {
-//                         suggestions.push(path_str.into_owned());
-//                     }
-//                 }
-//             }
-//         }
-//         Ok(suggestions)
-//     }
 
-//     fn get_completion(&mut self, _input: &str, highlighted: Option<String>) -> Result<Replacement, inquire::CustomUserError> {
-//         Ok(highlighted.map(Replacement::Some).unwrap_or(Replacement::None))
-//     }
-// }
+
+#[derive(Clone, Default)]
+struct ArchivePathAutocomplete;
+
+impl Autocomplete for ArchivePathAutocomplete {
+    fn get_suggestions(&mut self, input: &str) -> Result<Vec<String>, inquire::CustomUserError> {
+        let path = std::path::Path::new(input);
+        
+        let (dir, typed_prefix): (&std::path::Path, &str) = if path.is_dir() {
+            (path, "")
+        } else {
+            let parent = path.parent().unwrap_or(std::path::Path::new("."));
+            let prefix = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("");
+            (parent, prefix)
+        };
+
+        let mut suggestions = Vec::new();
+
+        if let Ok(entries) = fs::read_dir(dir) {
+            for entry in entries.flatten() {
+                let entry_path = entry.path();
+
+                let is_relevant = entry_path.is_dir()
+                    || entry_path.extension().and_then(|e| e.to_str()).map_or(false, |ext| {
+                        matches!(ext, "zip" | "7z" | "rar")
+                    });
+
+                if !is_relevant {
+                    continue;
+                }
+
+                let Some(path_str) = entry_path.to_str() else {
+                    continue;
+                };
+
+                let entry_name = entry_path
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("");
+
+                if entry_name.starts_with(typed_prefix) {
+                    if entry_path.is_dir() {
+                        suggestions.push(format!("{}/", path_str));
+                    } else {
+                        suggestions.push(path_str.to_owned());
+                    }
+                }
+            }
+        }
+
+        suggestions.sort();
+        Ok(suggestions)
+    }
+
+    fn get_completion(
+        &mut self,
+        _input: &str,
+        highlighted: Option<String>,
+    ) -> Result<Replacement, inquire::CustomUserError> {
+        Ok(highlighted
+            .map(Replacement::Some)
+            .unwrap_or(Replacement::None))
+    }
+}
 
 
 
@@ -91,56 +120,48 @@ pub fn ask_user_action() -> Result<String, UserInteractionError> {
         .spawn()
         .map_err(|er| UserInteractionError::FailedSpawn("fzf".to_string(), er))?;
 
-    let options = "Install a mod\nUninstall a mod\nList mods\nEnable a mod\nDisable a mod\nClose ATA :(";
+    let options =
+        "Install a mod\nUninstall a mod\nList mods\nEnable a mod\nDisable a mod\nClose ATA :(";
 
-    let mut fzf_stdin = fzf_child.stdin.take()
+    let mut fzf_stdin = fzf_child
+        .stdin
+        .take()
         .ok_or(UserInteractionError::MissingPipeHandle("fzf".to_string()))?;
-    fzf_stdin.write_all(options.as_bytes())
+    fzf_stdin
+        .write_all(options.as_bytes())
         .map_err(|er| UserInteractionError::BufferWriting(er, options.to_string()))?;
     drop(fzf_stdin);
 
-    let fzf_output = fzf_child.wait_with_output()
+    let fzf_output = fzf_child
+        .wait_with_output()
         .map_err(|er| UserInteractionError::ProcessOutputReading("fzf".to_string(), er))?;
 
     if !fzf_output.status.success() {
-        if let Some(code) = fzf_output.status.code() {
-            return Err(UserInteractionError::CommandCrash("fzf".to_string(), code))
+        return if let Some(code) = fzf_output.status.code() {
+            Err(UserInteractionError::CommandCrash("fzf".to_string(), code))
         } else {
-            return Err(UserInteractionError::SignalKill("fzf".to_string()))
-        }
+            Err(UserInteractionError::SignalKill("fzf".to_string()))
+        };
     }
 
     let user_selection = String::from_utf8(fzf_output.stdout)?;
-
     Ok(user_selection.trim().to_string())
 }
 
-
 pub fn ask_user_name_for_mod() -> Result<String, UserInteractionError> {
-    let name_for_mod = prompt_text("Select an identifier for this mod");
-    
-    match name_for_mod {
-        Ok(name) => Ok(name.trim().to_string()),
-        Err(er) => Err(UserInteractionError::InquirePrompt(er))
-    }
+    let name = prompt_text("Select an identifier for this mod")?;
+    Ok(name.trim().to_string())
 }
 
 pub fn ask_for_mod_name() -> Result<String, UserInteractionError> {
-    let mod_name = prompt_text("Insert the name of a mod");
-    
-    match mod_name {
-        Ok(name) => Ok(name.trim().to_string()),
-        Err(er) => Err(UserInteractionError::InquirePrompt(er))
-    }
+    let name = prompt_text("Insert the name of a mod")?;
+    Ok(name.trim().to_string())
 }
 
 pub fn ask_for_mod_folder() -> Result<PathBuf, UserInteractionError> {
-    println!("Insert the path to the compressed folder of the mod you downloaded\n\
-        IT HAS TO BE A COMPRESSED FOLDER (.zip/.7z/.rar)");
-    print!("Insert path>> ");
-    stdout().flush().map_err(|er| UserInteractionError::StdoutFlush(er))?;
+    let path_str = Text::new("Path to the compressed mod folder (.zip / .7z / .rar):")
+        .with_autocomplete(ArchivePathAutocomplete)
+        .prompt()?;
 
-    let mut answer = String::new();
-    stdin().read_line(&mut answer).map_err(|er| UserInteractionError::StdinRead(er))?;
-    Ok(PathBuf::from(answer.trim()))
+    Ok(PathBuf::from(path_str.trim()))
 }
