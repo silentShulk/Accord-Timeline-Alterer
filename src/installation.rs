@@ -172,7 +172,6 @@ fn decompress_rar(rared_mod_folder: &Path, rar_extraction_folder: PathBuf) -> Re
 pub fn get_mod_data(mod_folder_path: &Path) -> Result<Option<(ModType, Vec<PathBuf>)>, InstallationError> {
     let mut mod_contained: Option<ModType> = None;
     let mut mod_files: Option<Vec<PathBuf>> = None;
-    let mut files_to_remove: Vec<PathBuf> = Vec::new();
 
     for entry in WalkDir::new(&mod_folder_path) {
         let current_entry = entry?;
@@ -191,39 +190,29 @@ pub fn get_mod_data(mod_folder_path: &Path) -> Result<Option<(ModType, Vec<PathB
         };
 
         if extension != "dds" && extension != "dtt" && extension != "dat" && extension != "usm" {
-            files_to_remove.push(entry_path.to_path_buf());
-            continue;
+        	remove_file(entry_path).map_err(|er| InstallationError::FileRemoval(entry_path.to_path_buf(), er))?;
+         	continue;
         }
 
         mod_files.get_or_insert_with(Vec::new).push(entry_path.to_path_buf());
 
-        mod_contained = match extension {
-            "dds" => Some(ModType::Textures),
-            "dtt" | "dat" => {
-                let Some(name) = entry_path.file_name() else {
-                    println!("\"{}\" ends in .. (parent directory) or . (current directory), skipping", entry_path.display());
-                    continue;
-                };
-                let Some(name_str) = name.to_str() else {
-                	println!("\"{}\" conatins invalid UTF-8 in its name, skipping", entry_path.display());
-                	continue;
-                };
-                match &name_str[0..2] {
-                    "pl" => Some(ModType::PlayerModels),
-                    "wp" => Some(ModType::WeaponModels),
-                    "bg" => Some(ModType::WorldModels),
-                    _ => None,
+        if mod_contained.is_none() {
+            mod_contained = match extension {
+                "dds" => Some(ModType::Textures),
+                "dtt" | "dat" => {
+                    let name = entry_path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+                      
+                    if name.starts_with("pl") { Some(ModType::PlayerModels) }
+                    else if name.starts_with("wp") { Some(ModType::WeaponModels) }
+                    else if name.starts_with("bg") { Some(ModType::WorldModels) }
+                    else { None }
                 }
-            }
-            "usm" => Some(ModType::CutsceneReplacements),
-            _ => None,
-        };
+                "usm" => Some(ModType::CutsceneReplacements),
+                _ => None,
+            };
+        }
     }
 
-    for path in files_to_remove {
-        remove_file(&path).map_err(|er| InstallationError::FileRemoval(path.clone(), er))?;
-    }
-    
     Ok(mod_contained.zip(mod_files))
 }
 
