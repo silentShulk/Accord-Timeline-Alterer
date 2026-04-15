@@ -1,3 +1,9 @@
+//! **data_config** is a module that declares Types and Functions
+//! for interacting with saved data
+//! 
+//! In the case of ATA the saved data is store inside a 
+//! "data.json" file in *~/.config/ATA*
+
 use std::fs::File;
 
 use std::env::{VarError, var};
@@ -14,31 +20,54 @@ use serde::{Serialize, Deserialize};
 
 
 
+/// # Errors that could occur during interactions 
+/// # with the saved data
 #[derive(Error, Debug)]
 pub enum ConfigInteractionError {
+    /// The $HOME environment variable is not present in the system
+    /// I have no idea how this could possibly happen on a working Linux installation
     #[error("The $HOME env isn't present in your system (wtf)")]
     HomeEnvNotFound(#[from] VarError),
     
+    /// The data.json file in *~/.config/ATA* were impossible access
+    /// It could either be absent, have had its name changed or have gotten corrupted
     #[error("Coudln't access data.json file")]
     DataFileAccessing(#[from] std::io::Error),
     
+    /// The contents of data.json were impossible to read
+    /// This could be because either the file is corrupted or contains invalid JSON
     #[error("Unable to read contents of data.json")]
     JsonReading(#[from] serde_json::Error)
 }
 
 
 
-// The various types of mod that can be installed with ATA
+/// **Mod types supported by ATA**
+/// 
+/// Mod types not currently supported are not generic, but mod-specific (like NAIOM)
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, Debug)]
 pub enum ModType {
+    /// *Textures* mods contain textures for models
+    /// They contain **dds** files
     Textures,
+    /// *Player models* mods contain 3D models for 2B, 9S, A2
+    /// They contain **dtt/dat** files
     PlayerModels,
+    /// *Weapon models* mods contain 3D models for weapons
+    /// They contain **dtt/dat** files
     WeaponModels,
+    /// *World models* mods contain 3D models for world objects
+    /// They contain **dtt/dat** files
     WorldModels,
+    /// *Cutscene replacements* mods contain replacement for the game's cutscenes
+    /// They contain **usm** files
     CutsceneReplacements,
+    /// *Reshade presets* mods contain shader presets
+    /// They contain **???** files
     ReshadePreset,
 }
 impl ModType {
+    /// ## Returns the folder in which that mod type's files are installed in
     pub fn get_corresponding_folder(&self) -> String{
         match self {
             ModType::Textures => String::from("SK_Res/inject/textures/"),
@@ -51,6 +80,9 @@ impl ModType {
     }
 }
 impl fmt::Display for ModType {
+    /// ## Returns the human-readable name of the mod type
+    /// *Parameters:*
+    /// - f -> The formatter to write to
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ModType::Textures => write!(f, "Textures"),
