@@ -1,3 +1,13 @@
+/// *installation* is a module that contains the functions needed to installa a mod
+/// 
+/// This includes:
+/// * **decompressing**: Going from the compressed archive to a normal folder
+/// * **understanding the mod**: Looks at the type of files in the folder to understand what type of mod it is
+/// * **installing the mod**: Moves the files found to be of the mod in the folder in which that mod type goes
+/// * **updates the saved data**: Adds the newly installed mod to the data file (*~/.config/ATA/data.json*) 
+
+
+
 use std::fs::{File, copy, create_dir_all, remove_file};
 
 use std::path::{PathBuf, Path};
@@ -16,7 +26,15 @@ use crate::data_config::{Config, ConfigInteractionError, Mod, ModType};
 
 
 
-pub fn install_mod(config: &mut Config, compressed_mod_folder_path: &Path, answered_name: String) -> Result<Mod, InstallationError> {
+/// Installs a mod found in a compressed archive and saves it in a config with user-decided name
+/// 
+/// # Returns
+/// The Mod installed
+/// 
+/// # Errors
+/// * [`InstallationError::FileAccessing`] if the path to the compressed archive leads to nothing
+/// * [`InstallationError::`]
+pub fn install_mod(compressed_mod_folder_path: &Path, config: &mut Config, answered_name: String) -> Result<Mod, InstallationError> {
     // Check if it exists
     if !compressed_mod_folder_path.exists() {
         return Err(InstallationError::FileAccessing(compressed_mod_folder_path.to_path_buf()));
