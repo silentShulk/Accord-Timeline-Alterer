@@ -80,7 +80,7 @@ fn main() {
                 std::process::exit(1);
             });
 
-        	let installed_mod = install_mod(&mut current_config, &answered_path, answered_name).unwrap_or_else(|er| {
+        	let installed_mod = install_mod(&answered_path, &mut current_config, answered_name).unwrap_or_else(|er| {
              	eprintln!("There was a problem installing the mod. {}
                         ATA will now close...", er);
                	std::process::exit(1);
