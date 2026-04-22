@@ -28,7 +28,7 @@ function argument_check
 	exit 1
     end
     
-    set game_path $argv[1]
+    set -g game_path $argv[1]
 end
 
 function dependencies_installation
@@ -59,7 +59,7 @@ function dependencies_installation
         
     # Checking if 7zip is installed
     if ! type -q 7z
-        printf "\nFZF required but not installed"
+        printf "\n7zip required but not installed"
         
         set package_manager pacman
         for pm in apt dnf pacman brew
@@ -72,13 +72,13 @@ function dependencies_installation
         
         switch $package_manager
             case pacman
-                sudo pacman -S --noconfirm 7z
+                sudo pacman -S --noconfirm p7zip
             case apt
-                sudo apt install -y 7z
+                sudo apt install -y p7zip-full
             case dnf
-                sudo dnf install -y 7z
+                sudo dnf install -y p7zip
             case brew
-                brew install 7z
+                brew install p7zip
         end
     end
 end
@@ -138,7 +138,7 @@ function reshade_setup
     7z e ../bin/ReShade_Setup_6.7.3_Addon.exe ReShade64.dll
     
     # Move into Proton prefix
-    try mv ReShade64.dll /home/cmarco/.local/share/Steam/steamapps/compatdata/524220/pfx/drive_c/users/steamuser/Documents/My\ Mods/SpecialK/PlugIns/ThirdParty/Reshade/
+    try mv ReShade64.dll $HOME/.local/share/Steam/steamapps/compatdata/524220/pfx/drive_c/users/steamuser/Documents/My\ Mods/SpecialK/PlugIns/ThirdParty/Reshade/
     
     # Creating ReShade folders
     try mkdir -p $HOME/.local/share/Steam/steamapps/compatdata/524220/pfx/drive_c/users/steamuser/Documents/My\ Mods/SpecialK/Global/ReShade/Textures
@@ -160,7 +160,7 @@ end
 printf "Please go read the documentation if you haven't already\n"
 
 # Check if the game's installation path was passed correctly
-argument_check
+argument_check $argv
 
 # Installing dependencies (fzf, 7z)
 dependencies_installation
