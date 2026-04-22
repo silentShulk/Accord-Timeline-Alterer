@@ -93,5 +93,19 @@ printf "\nRunning script to install files needed to mod the game"
 
 
 
+printf "\nCheck you game dir, there should now be:
+- d3d11.dll
+- d3d11.ini
+- data
+- FAR.ini
+- logs/
+- NieRAutomata.exe
+- NieRAutomata.exe(original)
+- SK_Res
+- steam_api64.dll
+- Wallpaper"
+
+
+
 printf "\n\nInstallation complete, make sure ~/.local/bin is in your PATH
 Do not touch the ATA folders inside ~/.config, ~/.local/share and ~/.local/bin\n"
