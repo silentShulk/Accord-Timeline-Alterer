@@ -9,3 +9,11 @@ parentlessarchive - path is root or empty
 unsupportedcompression - path leads to a folder that isn't zip/rar/7zip
 
 fileaccessing - zip only; can't open the folder 
+
+
+
+
+
+## WAX
+for fps unlock remove exe and verofy integrity of files
+  CHECK CLAUDE CHAT
