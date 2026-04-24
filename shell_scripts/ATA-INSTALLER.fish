@@ -6,7 +6,7 @@ function try
     set -l code $status
 
     if test $code -ne 0
-        echo "Error running: $argv"
+        echo "\nError running: $argv"
         echo "  $output"
         exit $code
     end

@@ -7,7 +7,7 @@ function try {
     local code=$?
 
     if [ $code -ne 0 ]; then
-        echo "Error running: $@"
+        echo "\nError running: $@"
         echo "  $output"
         exit $code
     fi
