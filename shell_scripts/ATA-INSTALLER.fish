@@ -101,7 +101,6 @@ printf "\nCheck you game dir, there should now be:
 - FAR.ini
 - logs/
 - NieRAutomata.exe
-- NieRAutomata.exe(original)
 - SK_Res
 - steam_api64.dll
 - Wallpaper"
