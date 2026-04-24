@@ -2,13 +2,10 @@
 # GO TO LINE 159 TO SEE WHAT THE SCRIPT DOES
 
 function try
-    set -l output (eval $argv 2>&1)
-    set -l code $status
-
-    if test $code -ne 0
-        echo "\nError running: $argv"
-        echo "  $output"
-        exit $code
+    $argv
+    if test $status -ne 0
+        echo "Error running: $argv"
+        exit $status
     end
 end
 
@@ -111,7 +108,7 @@ function modding_requirements_installation
 end
     
 function specialk_auto_setup
-    printf "LET THE GAME START AND CLOSE IT FROM THE MAIN MENU"
+    printf "\nLET THE GAME START AND CLOSE IT FROM THE MAIN MENU"
     sleep 5
     
     # Launch game
@@ -119,26 +116,27 @@ function specialk_auto_setup
     steam steam://rungameid/524220
     
     # Wait for the game process to start
-    printf "Waiting for game to start...\n"
-    while not pgrep -x "steampp_524200" > /dev/null
+    while not pgrep -f NieRAutomata.exe > /dev/null
+        printf "Waiting for game to start...\n"
         sleep 1
     end
     
     # Now wait for the game process to end
-    printf "Game started! Close it from the main menu when ready.\n"
-    while pgrep -x "steampp_524200" > /dev/null
+    while pgrep -f NieRAutomata.exe > /dev/null
+        printf "Game started! You should see SpecialK top bar
+            Close it from the main menu\n"
         sleep 1
     end
     
-    printf "Game closed, continuing installation...\n"
+    printf "\nGame closed, continuing installation...\n"
+    sleep 3
 end
 
 function reshade_setup
-    # Extracting dll from installer exe
-    7z e ../bin/ReShade_Setup_6.7.3_Addon.exe ReShade64.dll
-    
-    # Move into Proton prefix
-    try mv ReShade64.dll $HOME/.local/share/Steam/steamapps/compatdata/524220/pfx/drive_c/users/steamuser/Documents/My\ Mods/SpecialK/PlugIns/ThirdParty/Reshade/
+    # Move ReShade dll into Proton prefix
+    cd ../lib/
+    try mkdir -p $HOME/.local/share/Steam/steamapps/compatdata/524220/pfx/drive_c/users/steamuser/Documents/My\ Mods/SpecialK/PlugIns/ThirdParty/Reshade/
+    try cp ReShade64.dll $HOME/.local/share/Steam/steamapps/compatdata/524220/pfx/drive_c/users/steamuser/Documents/My\ Mods/SpecialK/PlugIns/ThirdParty/Reshade/
     
     # Creating ReShade folders
     try mkdir -p $HOME/.local/share/Steam/steamapps/compatdata/524220/pfx/drive_c/users/steamuser/Documents/My\ Mods/SpecialK/Global/ReShade/Textures
@@ -146,6 +144,9 @@ function reshade_setup
     try cd $HOME/.local/share/Steam/steamapps/compatdata/524220/pfx/drive_c/users/steamuser/Documents/My\ Mods/SpecialK/Global/ReShade/
     
     # Copying ReShade default effects and textures from repo
+    if test -d reshade-shaders
+        rm -rf reshade-shaders
+    end
     git clone https://github.com/crosire/reshade-shaders.git
     try cp reshade-shaders/Shaders/* Shaders/
     try cp reshade-shaders/Textures/* Textures/
@@ -158,6 +159,7 @@ end
 
 # SCRIPT STARTS HERE
 printf "Please go read the documentation if you haven't already\n"
+sleep 2
 
 # Check if the game's installation path was passed correctly
 argument_check $argv
@@ -184,13 +186,18 @@ printf "\nCheck you game dir, there should now be:
 - d3d11.ini
 - data
 - FAR.ini
+- installation_os_check.vdf (REMOVE THIS)
 - logs/
 - NieRAutomata.exe
 - NieRAutomata.exe(original)
+- NieRAutomataCompat.exe (REMOVE THIS)
+- ReShade
 - SK_Res
 - steam_api64.dll
-- Wallpaper"
-
+- Wallpaper
+- win8_7_setup.bat (REMOVE THIS)
+- win10setup.bat (REMOVE THIS)
+"
 
 
 printf "\n\nInstallation complete, make sure ~/.local/bin is in your PATH
