@@ -37,7 +37,7 @@ use crate::data_config::{Config, ConfigInteractionError, Mod, ModType};
 pub fn install_mod(compressed_mod_folder_path: &Path, config: &mut Config, answered_name: String) -> Result<Mod, InstallationError> {
     // Check if it exists
     if !compressed_mod_folder_path.exists() {
-        return Err(InstallationError::FileAccessing(compressed_mod_folder_path.to_path_buf()));
+        return Err(InstallationError::FileNotFound(compressed_mod_folder_path.to_path_buf()));
     }
 
     // Unzip the mod folder
