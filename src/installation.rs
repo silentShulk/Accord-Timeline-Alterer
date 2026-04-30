@@ -67,71 +67,69 @@ pub fn install_mod(compressed_mod_folder_path: &Path, config: &mut Config, answe
 
 #[derive(Error, Debug)]
 pub enum InstallationError {
-    // Extension Reading
-    #[error("{0} is an an extensionless file, it will be skipped")]
-    ExtensionlessFile(PathBuf),
-
-    #[error("{0} has an extension containing invalid UTF-8, it will be skipped")]
-    InvalidExtension(PathBuf),
-
-    // Decompression
-    #[error("The received compressed folder ({0}) uses an unsupported extension")]
-    UnsupportedCompression(PathBuf),
-
-    #[error("Couldn't access {0}, check if it exists")]
-    FileAccessing(PathBuf),
-
-    #[error("Couldn't extract zip archive. {0}")]
-    FailedZipExtraction(#[from] zip::result::ZipError),
-
-    #[error("Compressed archive ({0}) doesn't have a parent directory")]
-    ParentlessArchive(PathBuf),
-
-    #[error("The compressed archive ({0}) doesn't have a name")]
-    NamelessArchive(PathBuf),
-
-    #[error("Couldn't extract 7z archive. {0}")]
-    Failed7zExtraction(#[from] sevenz_rust::Error),
-
-    #[error("Couldn't extract rar archive. {0}")]
-    FailedRarExtraction(#[from] unrar::error::UnrarError),
-
-    // Directory Reading Errors
-    #[error("Couldn't read an entry. {0}")]
-    ModFolderEntryReading(#[from] walkdir::Error),
-
-    #[error("Couldn't read the mod folder. {0}")]
-    ModFileReading(#[from] std::io::Error),
-
-    #[error("Couldn't create {0} directory inside of game's folder. {1}")]
-    FolderCreation(PathBuf, std::io::Error),
+    // Check if path exists
+    #[error("{0} doesn't exist")]
+    FileNotFound(PathBuf),
     
-    #[error("{0} ends with ..")]
-    DotDotPath(PathBuf),
-
-    #[error("Couldn't copy {0} to {1}. {2}")]
-    FileCopying(PathBuf, PathBuf, std::io::Error),
-
-    #[error("Couldn't remove a file")]
-    FileRemoval(PathBuf, std::io::Error),
-
+    // Decompresss archive
+    #[error("{0} is an extensionless file")]
+    ExtensionlessFile(PathBuf),
+    
+    #[error("{0} contains invalid UTF-8 characters in its extension")]
+    InvalidExtension(PathBuf),
+    
+    #[error("{0} is a nameless file")]
+    NamelessFile(PathBuf),
+    
+    #[error("{0} is a parentless file")]
+    ParentlessFile(PathBuf),
+    
+    #[error("{0} is of an unsupported compression type (supported types are .zip, .7z .rar)")]
+    UnsupportedCompression(PathBuf),
+    
+    #[error("Couldn't access/open {0}")]
+    FileAccessing(#[from] std::io::Error),
+    
+    #[error("Couldn't extract zip file {0}")]
+    ZipExtracionFailed(#[from] zip::result::ZipError),      // Zip specific
+    
+    #[error("Couldn't extract 7z file {0}")]
+    SevenZipExtractionFailed(#[from] sevenz_rust::Error),   // 7z specific
+    
+    #[error("Couldn't extract rar file {0}")]
+    RarExtractionFailed(#[from] unrar::error::UnrarError),  // Rar specific
+    
+    // Get mod data
+    #[error("Couldn't read entry from mod folder. {0}")]
+    EntryReading(#[from] walkdir::Error),
+    
     #[error("The given folder doesn't contain a mod")]
     ModlessFolder(PathBuf),
     
-    #[error("Couldn't update data file (~/.config/ATA/data.json) to add newly installed mod")]
-    DataSaving(#[from] ConfigInteractionError)
+    // File copying
+    #[error("Couldn't create {0}. {1}")]
+    FolderCreation(PathBuf, std::io::Error),
+    
+    #[error("{0} is either root or ends in ..")]
+    InvalidFileName(PathBuf),
+    
+    #[error("Couldn't copy {0} to {1}. {2}")]
+    FileCopying(PathBuf, PathBuf, std::io::Error),
+    
+    // Data saving
+    #[error("Couldn't update data file (~/.config/ATA/data.json). {0}")]
+    DataSaving(#[from] ConfigInteractionError),
 }
 
 
 
-// DECOMPRESSING THE MOD FOLDER
 pub fn decompress_folder(compressed_mod_folder: &Path) -> Result<PathBuf, InstallationError> {
     let extension = get_file_extension(compressed_mod_folder)?;
 
    	let folder_name = compressed_mod_folder.file_stem()
-           .ok_or(InstallationError::NamelessArchive(compressed_mod_folder.to_path_buf()))?;
+           .ok_or(InstallationError::NamelessFile(compressed_mod_folder.to_path_buf()))?;
 	let mod_folder_parent = compressed_mod_folder.parent()
-		.ok_or(InstallationError::ParentlessArchive(compressed_mod_folder.to_path_buf()))?;
+		.ok_or(InstallationError::ParentlessFile(compressed_mod_folder.to_path_buf()))?;
     let target_folder = mod_folder_parent
            .join(folder_name);
 
@@ -155,8 +153,7 @@ fn get_file_extension(path: &Path) -> Result<&str, InstallationError> {
 }
 
 fn decompress_zip(zipped_mod_folder: &Path, zip_extraction_folder: PathBuf) -> Result<PathBuf, InstallationError> {
-    let zip_file = File::open(zipped_mod_folder)
-        .map_err(|_| InstallationError::FileAccessing(zipped_mod_folder.to_path_buf()))?;
+    let zip_file = File::open(zipped_mod_folder)?;
     let mut zip_archive = ZipArchive::new(zip_file)?;
 
     zip_archive.extract(&zip_extraction_folder)?;
@@ -186,7 +183,6 @@ fn decompress_rar(rared_mod_folder: &Path, rar_extraction_folder: PathBuf) -> Re
 
 
 
-// UNDERSTANDING MOD TYPE AND FILTERING OUT NON-MOD FILES AND KEEPING FOLDER STRUCTURE
 pub fn get_mod_data(mod_folder_path: &Path) -> Result<Option<(ModType, Vec<PathBuf>)>, InstallationError> {
     let mut mod_contained: Option<ModType> = None;
     let mut mod_files: Option<Vec<PathBuf>> = None;
@@ -208,7 +204,7 @@ pub fn get_mod_data(mod_folder_path: &Path) -> Result<Option<(ModType, Vec<PathB
         };
 
         if extension != "dds" && extension != "dtt" && extension != "dat" && extension != "usm" {
-        	remove_file(entry_path).map_err(|er| InstallationError::FileRemoval(entry_path.to_path_buf(), er))?;
+        	remove_file(entry_path)?;
          	continue;
         }
 
@@ -243,7 +239,7 @@ fn copy_mod_files(mod_files: &Vec<PathBuf>, destination_folder_path: PathBuf) ->
     let mut copied_files: Vec<PathBuf> = vec![];
     for file in mod_files {
        	let Some(filename) = file.file_name() else {
-        		return Err(InstallationError::DotDotPath(file.to_path_buf()))
+        		return Err(InstallationError::InvalidFileName(file.to_path_buf()))
         };
         
         let copied_file = destination_folder_path.join(filename); 
@@ -257,10 +253,6 @@ fn copy_mod_files(mod_files: &Vec<PathBuf>, destination_folder_path: PathBuf) ->
 }
 
 
-
-/* ------------------------ */
-/*   INSTALLATION METHODS   */
-/* ------------------------ */
 
 pub fn install(mod_type: &ModType, mod_files: &Vec<PathBuf>, game_path: &PathBuf) -> Result<Vec<PathBuf>, InstallationError> {
     let installation_folder = game_path.join(mod_type.get_corresponding_folder());
