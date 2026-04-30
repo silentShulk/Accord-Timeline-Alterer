@@ -1,10 +1,10 @@
-/// *installation* is a module that contains the functions needed to installa a mod
-/// 
-/// This includes:
-/// * **decompressing**: Going from the compressed archive to a normal folder
-/// * **understanding the mod**: Looks at the type of files in the folder to understand what type of mod it is
-/// * **installing the mod**: Moves the files found to be of the mod in the folder in which that mod type goes
-/// * **updates the saved data**: Adds the newly installed mod to the data file (*~/.config/ATA/data.json*) 
+//! *installation* is a module that contains the functions needed to installa a mod
+//! 
+//! This includes:
+//! * **decompressing**: Going from the compressed archive to a normal folder
+//! * **understanding the mod**: Looks at the type of files in the folder to understand what type of mod it is
+//! * **installing the mod**: Moves the files found to be of the mod in the folder in which that mod type goes
+//! * **updates the saved data**: Adds the newly installed mod to the data file (*~/.config/ATA/data.json*) 
 
 
 
@@ -28,12 +28,26 @@ use crate::data_config::{Config, ConfigInteractionError, Mod, ModType};
 
 /// Installs a mod found in a compressed archive and saves it in a config with user-decided name
 /// 
+/// # Arguments
+/// * `compressed_mod_folder_path` - The path to the compressed archive which contains the mod
+/// * `config` - The config to save the mod in
+/// * `answered_name` - The name to give the mod
+/// 
 /// # Returns
-/// The Mod installed
+/// * [`Ok`] -> The Mod installed
+/// * [`Err`] -> The type of error that occured
 /// 
 /// # Errors
-/// * [`InstallationError::FileAccessing`] if the path to the compressed archive leads to nothing
-/// * [`InstallationError::`]
+/// * [`InstallationError::FileNotFound`] if the path to the compressed archive leads to nothing
+/// * [`InstallationError::ExtensionlessFile`] if the compressed archive has no extension
+/// * [`InstallationError::InvalidExtension`] if the compressed archive has an invalid extension
+/// * [`InstallationError::NamelessFile`] if the compressed archive has no name or an invalid one
+/// * [`InstallationError::ParentlessFile`] if the compressed archive is root or has no parent directory
+/// * [`InstallationError::UnsupportedCompression`] if the compressed archive has an extension that isn't supported (.zip, .7z, .rar)
+/// * [`InstallationError::FileAccessing`] if problem occur during file/folder creation/deletion
+/// * [`InstallationError::ZipExtracionFailed`] if the zip archive extraction fails
+/// * [`InstallationError::SevenZipExtractionFailed`] if the 7z archive extraction fails
+/// * [`InstallationError::RarExtractionFailed`] if the rar archive extraction fails
 pub fn install_mod(compressed_mod_folder_path: &Path, config: &mut Config, answered_name: String) -> Result<Mod, InstallationError> {
     // Check if it exists
     if !compressed_mod_folder_path.exists() {
@@ -81,7 +95,7 @@ pub enum InstallationError {
     #[error("{0} is a nameless file")]
     NamelessFile(PathBuf),
     
-    #[error("{0} is a parentless file")]
+    #[error("{0} is a parentless file (root folder)")]
     ParentlessFile(PathBuf),
     
     #[error("{0} is of an unsupported compression type (supported types are .zip, .7z .rar)")]
@@ -123,6 +137,25 @@ pub enum InstallationError {
 
 
 
+/// Decompresses a compressed archive into a folder with the same name (zip, 7z, rar)
+/// 
+/// # Arguments
+/// * `compressed_mod_folder` - The path to the compressed archive
+/// 
+/// # Returns
+/// * [`Ok`] -> The path to the decompressed folder
+/// * [`Err`] -> The error that occured
+/// 
+/// # Errors
+/// * [`InstallationError::ExtensionlessFile`] if the compressed archive has no extension
+/// * [`InstallationError::InvalidExtension`] if the compressed archive has an invalid extension
+/// * [`InstallationError::NamelessFile`] if the compressed archive has no name or an invalid one
+/// * [`InstallationError::ParentlessFile`] if the compressed archive is root or has no parent directory
+/// * [`InstallationError::UnsupportedCompression`] if the compressed archive has an extension that isn't supported (.zip, .7z, .rar)
+/// * [`InstallationError::FileAccessing`] if problem occur during file/folder creation/deletion
+/// * [`InstallationError::ZipExtracionFailed`] if the zip archive extraction fails
+/// * [`InstallationError::SevenZipExtractionFailed`] if the 7z archive extraction fails
+/// * [`InstallationError::RarExtractionFailed`] if the rar archive extraction fails
 pub fn decompress_folder(compressed_mod_folder: &Path) -> Result<PathBuf, InstallationError> {
     let extension = get_file_extension(compressed_mod_folder)?;
 
@@ -141,6 +174,18 @@ pub fn decompress_folder(compressed_mod_folder: &Path) -> Result<PathBuf, Instal
     }
 }
 
+/// Returns the file extension of a path as a string slice
+/// 
+/// # Arguments
+/// * `path` - The path to get the extension from
+/// 
+/// # Returns
+/// * [`Ok`] -> The file extension as a string slice
+/// * [`Err`] -> The error that occured
+/// 
+/// # Errors
+/// * [`InstallationError::ExtensionlessFile`] if the compressed archive has no extension
+/// * [`InstallationError::InvalidExtension`] if the compressed archive has an invalid extension
 fn get_file_extension(path: &Path) -> Result<&str, InstallationError> {
     let Some(extension) = path.extension() else {
         return Err(InstallationError::ExtensionlessFile(path.to_path_buf()));
@@ -152,6 +197,19 @@ fn get_file_extension(path: &Path) -> Result<&str, InstallationError> {
     Ok(extension_str)
 }
 
+/// Decompresses a zip archive
+/// 
+/// # Arguments
+/// * `zipped_mod_folder` - The path to the zip archive
+/// * `zip_extraction_folder` - The path to the folder to extract the zip archive into
+/// 
+/// # Returns
+/// * [`Ok`] -> The path to the decompressed folder
+/// * [`Err`] -> The error that occured
+/// 
+/// # Errors
+/// * [`InstallationError::FileAccessing`] if problem occur during file/folder creation/deletion
+/// * [`InstallationError::ZipExtracionFailed`] if the zip archive extraction fails
 fn decompress_zip(zipped_mod_folder: &Path, zip_extraction_folder: PathBuf) -> Result<PathBuf, InstallationError> {
     let zip_file = File::open(zipped_mod_folder)?;
     let mut zip_archive = ZipArchive::new(zip_file)?;
@@ -161,12 +219,36 @@ fn decompress_zip(zipped_mod_folder: &Path, zip_extraction_folder: PathBuf) -> R
     Ok(zip_extraction_folder)
 }
 
+/// Decompresses a 7z archive
+/// 
+/// # Arguments
+/// * `sevzipped_mod_folder` - The path to the 7z archive
+/// * `sevzip_extraction_folder` - The path to the folder to extract the 7z archive into
+/// 
+/// # Returns
+/// * [`Ok`] -> The path to the decompressed folder
+/// * [`Err`] -> The error that occured
+/// 
+/// # Errors
+/// * [`InstallationError::SevenZipExtractionFailed`] if the 7z archive extraction fails
 fn decompress_7z(sevzipped_mod_folder: &Path, sevzip_extraction_folder: PathBuf) -> Result<PathBuf, InstallationError> {
 	decompress_file(sevzipped_mod_folder, &sevzip_extraction_folder)?;
 
 	Ok(sevzip_extraction_folder)
 }
 
+/// Decompresses a RAR archive
+/// 
+/// # Arguments
+/// * `rared_mod_folder` - The path to the RAR archive
+/// * `rar_extraction_folder` - The path to the folder to extract the RAR archive into
+/// 
+/// # Returns
+/// * [`Ok`] -> The path to the decompressed folder
+/// * [`Err`] -> The error that occured
+/// 
+/// # Errors
+/// * [`InstallationError::RarExtractionFailed`] if the RAR archive extraction fails
 fn decompress_rar(rared_mod_folder: &Path, rar_extraction_folder: PathBuf) -> Result<PathBuf, InstallationError> {
 	let mut rar_archive = Archive::new(rared_mod_folder).open_for_processing()?;
 
@@ -183,6 +265,17 @@ fn decompress_rar(rared_mod_folder: &Path, rar_extraction_folder: PathBuf) -> Re
 
 
 
+/// Returns the mod type and the filtered files of the mod
+/// 
+/// # Arguments
+/// * `mod_folder_path` - The path to the mod folder
+/// 
+/// # Returns
+/// * [`Ok`] -> [`Option`] -< [`Some`] -> the mod type and filtered files of the mod / [`None`] -> no mod found
+/// * [`Err`] -> The error that occured
+/// 
+/// # Errors
+/// * [`InstallationError::FileAccessing`] if problem occur during file/folder creation/deletion
 pub fn get_mod_data(mod_folder_path: &Path) -> Result<Option<(ModType, Vec<PathBuf>)>, InstallationError> {
     let mut mod_contained: Option<ModType> = None;
     let mut mod_files: Option<Vec<PathBuf>> = None;
