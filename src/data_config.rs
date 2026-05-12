@@ -12,7 +12,7 @@ use std::io::BufReader;
 
 use std::path::PathBuf;
 
-use std::fmt;
+use std::fmt::{self};
 
 use thiserror::Error;
 
@@ -49,6 +49,9 @@ pub enum ConfigInteractionError {
 /// Mod types not currently supported are not generic, but mod-specific (like NAIOM)
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, Debug)]
 pub enum ModType {
+    /// `DLL` mods are unique mods
+    /// They contain **dll** files and other files
+    DLL,
     /// `Textures` mods contain textures for models
     /// They contain **dds** files
     Textures,
@@ -65,7 +68,7 @@ pub enum ModType {
     /// They contain **usm** files
     CutsceneReplacements,
     /// `Reshade presets` mods contain shader presets
-    /// They contain **???** files
+    /// They contain **ini** files and other files
     ReshadePreset,
 }
 impl ModType {
@@ -80,6 +83,7 @@ impl ModType {
     /// * *idk* for reshade presets
     pub fn get_corresponding_folder(&self) -> String{
         match self {
+            ModType::DLL => String::from(""),
             ModType::Textures => String::from("SK_Res/inject/textures/"),
             ModType::PlayerModels => String::from("data/pl/"),
             ModType::WeaponModels => String::from("data/wp/"),
@@ -92,6 +96,7 @@ impl ModType {
 impl fmt::Display for ModType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            ModType::DLL => write!(f, "Unique mod"),
             ModType::Textures => write!(f, "Textures"),
             ModType::PlayerModels => write!(f, "Player Models"),
             ModType::WeaponModels => write!(f, "Weapon Models"),

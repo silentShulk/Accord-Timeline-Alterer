@@ -310,16 +310,17 @@ fn get_mod_data(mod_folder_path: &Path) -> Result<Option<(ModType, Vec<PathBuf>)
 
         if mod_contained.is_none() {
             mod_contained = match extension {
+                "dll" => Some(ModType::DLL),
                 "dds" => Some(ModType::Textures),
                 "dtt" | "dat" => {
                     let name = entry_path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-                      
                     if name.starts_with("pl") { Some(ModType::PlayerModels) }
                     else if name.starts_with("wp") { Some(ModType::WeaponModels) }
                     else if name.starts_with("bg") { Some(ModType::WorldModels) }
                     else { None }
                 }
                 "usm" => Some(ModType::CutsceneReplacements),
+                "ini" => Some(ModType::ReshadePreset),
                 _ => None,
             };
         }
