@@ -115,7 +115,7 @@ function user_action
     - \"Installed files\" tab -> \"Verify integrity of game files\"
     - Let it run for however long it takes and then come back here"
     
-    printf "\nType 'file check done' and press Enter when ready: "
+    printf "\nType 'file check done' and press Enter when ready\n"
     while true
         read -P "Type here> " -l user_input
         if test "$user_input" = "file check done"
@@ -128,28 +128,18 @@ end
     
 function reshade_setup
     printf ""
-    # Move ReShade dll into Proton prefix
+    # Move ReShade dll into game's directory
     cd ../lib/
-    try mkdir -p $HOME/.local/share/Steam/steamapps/compatdata/524220/pfx/drive_c/users/steamuser/Documents/My\ Mods/SpecialK/PlugIns/ThirdParty/Reshade/
-    try cp ReShade64.dll $HOME/.local/share/Steam/steamapps/compatdata/524220/pfx/drive_c/users/steamuser/Documents/My\ Mods/SpecialK/PlugIns/ThirdParty/Reshade/
-    
-    # Creating ReShade folders
-    try mkdir -p $HOME/.local/share/Steam/steamapps/compatdata/524220/pfx/drive_c/users/steamuser/Documents/My\ Mods/SpecialK/Global/ReShade/Textures
-    try mkdir -p $HOME/.local/share/Steam/steamapps/compatdata/524220/pfx/drive_c/users/steamuser/Documents/My\ Mods/SpecialK/Global/ReShade/Shaders
-    try cd $HOME/.local/share/Steam/steamapps/compatdata/524220/pfx/drive_c/users/steamuser/Documents/My\ Mods/SpecialK/Global/ReShade/
-    
-    # Copying ReShade default effects and textures from repo
-    if test -d reshade-shaders
-        rm -rf reshade-shaders
-    end
-    git clone https://github.com/crosire/reshade-shaders.git
-    try cp reshade-shaders/Shaders/* Shaders/
-    try cp reshade-shaders/Textures/* Textures/
-    try rm -rf reshade-shaders
+    try cp ReShade64.dll $HOME/.local/share/Steam/steamapps/common/NieRAutomata/
+    try mv $HOME/.local/share/Steam/steamapps/common/NieRAutomata/ReShade64.dll $HOME/.local/share/Steam/steamapps/common/NieRAutomata/dxgi.dll
+
+    # Moving ReShade effects folders
+    try cp -r reshade-shaders/Shaders $HOME/.local/share/Steam/steamapps/common/NieRAutomata/
+    try cp -r reshade-shaders/Textures $HOME/.local/share/Steam/steamapps/common/NieRAutomata/
 end
 
 function setup_finalization
-    printf "\nFinilazing installation...
+    printf "\nFinalizing installation...
     LET THE GAME START AND CLOSE IT FROM THE MAIN MENU"
     sleep 5
     
@@ -165,7 +155,7 @@ function setup_finalization
     
     # Now wait for the game process to end
     while pgrep -f NieRAutomata.exe > /dev/null
-        printf "Game started! You should see _wax loaded_ in the loading screen
+        printf "Game started! You should see  '_wax loaded_' in the loading screen
         Close it from the main menu\n"
         sleep 3
     end
@@ -202,7 +192,7 @@ ATA_setup
 user_action
 
 # Creating ReShade files and folders, cloning default effects/textures
-# reshade_setup
+reshade_setup
 
 # Starting the game to let WAX create files
 setup_finalization
