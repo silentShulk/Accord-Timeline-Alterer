@@ -18,6 +18,8 @@ use thiserror::Error;
 
 use serde::{Serialize, Deserialize};
 
+use dirs::config_dir;
+
 
 
 /// Errors that could occur during interactions with the saved data
@@ -26,19 +28,19 @@ pub enum ConfigInteractionError {
     /// The $HOME environment variable is not present in the system
     /// 
     /// I have no idea how this could possibly happen on a working Linux installation
-    #[error("The $HOME env isn't present in your system (wtf)")]
+    #[error("The $HOME env isn't present in your system (wtf). {0}")]
     HomeEnvNotFound(#[from] VarError),
     
     /// The data.json file in *~/.config/ATA* were impossible access
     /// 
     /// It could either be absent, have had its name changed or have gotten corrupted
-    #[error("Coudln't access data.json file")]
+    #[error("Coudln't access data.json file (found inside config dir of OS). {0}", )]
     DataFileAccessing(#[from] std::io::Error),
     
     /// The contents of data.json were impossible to read
     /// 
     /// This could be because either the file is corrupted or contains invalid JSON
-    #[error("Unable to read contents of data.json")]
+    #[error("Unable to read contents of data.json. {0}")]
     JsonReading(#[from] serde_json::Error)
 }
 
@@ -169,9 +171,9 @@ impl Config {
     /// - [`ConfigInteractionError::DataFileAccessing`] if the data file cannot be accessed
     /// - [`ConfigInteractionError::JsonReading`] if the data file cannot be parsed
     pub fn load_config() -> Result<Self, ConfigInteractionError> {
-        let home_dir = var("HOME")?;
-        let data_file_path = PathBuf::from(home_dir)
-            .join(".config")
+        let config_dir = config_dir()
+            .ok_or(ConfigInteractionError::HomeEnvNotFound(VarError::NotPresent))?;
+        let data_file_path = PathBuf::from(config_dir)
             .join("ATA")
             .join("data.json");
 

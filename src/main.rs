@@ -1,3 +1,15 @@
+//! **main** is the module that contains the main functions
+//! Which branches into a separate function based on the args received
+//! 
+//! This includes:
+//! * **installing a mod**: --install [PATH TO MOD ARCHIVE] [NAME *FOR* MOD]
+//! * **uninstalling a mod**: --uninstall [NAME OF MOD]
+//! * **listing installed mods**: --list
+//! * **enabling a mod**: --enable [NAME OF MOD]
+//! * **disabling a mod**: --disable [NAME OF MOD]
+//! 
+//! Main function: [`main`]
+
 use std::path::PathBuf;
 
 use clap::Parser;
@@ -15,6 +27,7 @@ use installed_mod_managing::{list_mods, enable_mod, disable_mod};
 
 
 
+/// 
 #[derive(Parser)]
 #[command(name = "ATA", version = "0.01", about = "Accord's Timeline Alterer, the NieR Automata mod manager for Linux")]
 struct Args {
