@@ -107,7 +107,7 @@ def ATA_setup [game_path: string] {
 
     # Copying files into the newly created directories
     print "\nCopying ATA files into ~/.local/share/ and ~/.local/bin"
-    cp ./install-prerequisites.sh $"($env.HOME)/.local/share/ATA"
+    cp ./install-prerequisites.nu $"($env.HOME)/.local/share/ATA"
     cp ../target/release/ATA $"($env.HOME)/.local/bin"
 
     # Creating default data file
