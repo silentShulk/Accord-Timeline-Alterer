@@ -94,7 +94,7 @@ function ATA_setup
 
     # Copying files into the newly created directories
     printf "\nCopying ATA files into ~/.local/share/ and ~/.local/bin"
-    try cp ./install-prerequisites.sh $HOME/.local/share/ATA
+    try cp ./install-prerequisites.fish $HOME/.local/share/ATA
     try cp ../target/release/ATA $HOME/.local/bin
 
     # Creating default data file
