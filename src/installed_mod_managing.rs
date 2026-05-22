@@ -48,12 +48,12 @@ pub fn list_mods(mods: &Vec<Mod>) {
 }
 
 pub fn enable_mod(config: &mut Config, mod_name: String) -> Result<Mod, EnablingDisablingError>  {
-	let Some(mod_to_enable) = config.get_mod_by_name(&mod_name) else {
+	let Some(mut mod_to_enable) = config.get_mod_by_name(&mod_name) else {
 		return Err(EnablingDisablingError::ModNotFound(mod_name))
 	};
 	let mut updated_files: Vec<PathBuf> = vec![];
 	
-    for file in &mod_to_enable.files {
+    for file in &mod_to_enable.1.files {
     	let Some(filename) = file.file_name() else {
      		return Err(EnablingDisablingError::DotDotPath(file.to_path_buf()))
      	};
@@ -69,19 +69,19 @@ pub fn enable_mod(config: &mut Config, mod_name: String) -> Result<Mod, Enabling
         updated_files.push(new_path);
     }
     
-    mod_to_enable.enabled = true;
-    mod_to_enable.files = updated_files;
+    mod_to_enable.1.enabled = true;
+    mod_to_enable.1.files = updated_files;
     
-    Ok(mod_to_enable.clone())
+    Ok(mod_to_enable.1.clone())
 }
 
 pub fn disable_mod(config: &mut Config, mod_name: String) -> Result<Mod, EnablingDisablingError>  {
-	let Some(mod_to_disable) = config.get_mod_by_name(&mod_name) else {
+	let Some(mut mod_to_disable) = config.get_mod_by_name(&mod_name) else {
 		return Err(EnablingDisablingError::ModNotFound(mod_name))
 	};
 	let mut updated_files: Vec<PathBuf> = vec![];
 	
-    for file in &mod_to_disable.files {
+    for file in &mod_to_disable.1.files {
     	let Some(filename) = file.file_name() else {
      		return Err(EnablingDisablingError::DotDotPath(file.to_path_buf()))
      	};
@@ -98,8 +98,8 @@ pub fn disable_mod(config: &mut Config, mod_name: String) -> Result<Mod, Enablin
         updated_files.push(disabled_folder.join(filename));
     }
     
-    mod_to_disable.enabled = false;
-    mod_to_disable.files = updated_files;
+    mod_to_disable.1.enabled = false;
+    mod_to_disable.1.files = updated_files;
     
-    Ok(mod_to_disable.clone())
+    Ok(mod_to_disable.1.clone())
 }

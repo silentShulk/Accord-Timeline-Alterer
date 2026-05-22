@@ -4,19 +4,21 @@ use std::path::PathBuf;
 
 use thiserror::Error;
 
-use crate::data_config::Config;
+use crate::data_config::{Config, Mod, ConfigInteractionError};
 
 
 
-pub fn uninstall_mod(config: &mut Config, mod_name: String) -> Result<usize, UninstallationError> {
-    let index_to_uninstall = config.mods
-        .iter()
-        .position(|m| m.name == mod_name)
-        .ok_or(UninstallationError::ModNotFound(mod_name))?;
+pub fn uninstall_mod(config: &mut Config, mod_name: String) -> Result<Mod, UninstallationError> {
+    let Some(mod_to_uninstall) = config.get_mod_by_name(&mod_name) else {
+        return Err(UninstallationError::ModNotFound(mod_name));
+    };
 
-    remove_mod_files(config.mods[index_to_uninstall].clone().files)?;
+    remove_mod_files(&mod_to_uninstall.1.files)?;
+
+    config.remove_mod(mod_to_uninstall.0)
+        .map_err(|e| UninstallationError::DataSaving(e))?;
     
-    Ok(index_to_uninstall)
+    Ok(mod_to_uninstall.1)
 }
 
 
@@ -30,12 +32,15 @@ pub enum UninstallationError {
     ModNotFound(String),
     
     #[error("Couldn't remove {0} from the game's directory")]
-    FileDeletion(PathBuf, std::io::Error)
+    FileDeletion(PathBuf, std::io::Error),
+
+    #[error("Couldn't update data file (~/.config/ATA/data.json). {0}")]
+    DataSaving(#[from] ConfigInteractionError),
 }
 
 
 
-pub fn remove_mod_files(mod_files: Vec<PathBuf>) -> Result<(), UninstallationError> {
+pub fn remove_mod_files(mod_files: &Vec<PathBuf>) -> Result<(), UninstallationError> {
     for file in mod_files {
         remove_file(&file)
             .map_err(|er| UninstallationError::FileDeletion(file.clone(), er))?;

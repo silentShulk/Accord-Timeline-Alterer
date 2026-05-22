@@ -1,5 +1,9 @@
+use std::path::PathBuf;
+
+use clap::Parser;
+
 mod data_config;
-use data_config::{Config};
+use data_config::{Config, Mod};
 
 mod installation;
 mod uninstallation;
@@ -9,170 +13,75 @@ use installation::install_mod;
 use uninstallation::uninstall_mod;
 use installed_mod_managing::{list_mods, enable_mod, disable_mod};
 
-mod user_interactions;
-use user_interactions::{
-    ask_user_action,
-    ask_for_mod_name,
-    ask_for_mod_folder
-};
-
-use clap::Parser;
-
-use crate::user_interactions::ask_user_name_for_mod;
 
 
+#[derive(Parser)]
+#[command(name = "ATA", version = "0.01", about = "Accord's Timeline Alterer, the NieR Automata mod manager for Linux")]
+struct Args {
+    #[arg(long = "install", short='i', num_args = 2, value_names = ["PATH", "NAME"],
+        help="Install a mod from a given path with a specified name")]
+    install: Option<Vec<String>>,
 
-fn main() {
-    println!("\nWELCOME TO ACCORD'S TIMELINE ALTERER\n(AUTOMATA'S MOD MANAGER FOR LINUX)\n\n");
+    #[arg(long="uninstall", short='u', value_name = "NAME",
+        help="Uninstall a mod by its name")]
+    uninstall: Option<String>,
 
+    #[arg(long="list", short='l',
+        help="List all installed mods")]
+    list: bool,
 
+    #[arg(long="enable", short='e', value_name = "NAME",
+        help="Enable a mod by its name")]
+    enable: Option<String>,
 
-    /* ----------------------- */
-    /*   LOADING CONFIG DATA   */
-    /* ----------------------- */
-
-    println!("Loading data file (~/.config/ATA/data.json)");
-
-    let mut current_config = Config::load_config()
-    .unwrap_or_else(|err| {
-        eprintln!("There was a problem accessing the data file (~/.config/ATA/data.json). {}\nConsider checking if the file is there and if it isn't corrupted.
-                ATA will now close...", err);
-        std::process::exit(1);
-    });
-
-    println!("Config file (~/.config/ATA/data.json) loaded!\n");
-
-
-
-    /* -------------------------------- */
-    /*   STARTING ONE OF THE FEATURES   */
-    /* -------------------------------- */
-
-    clearscreen::clear().unwrap_or_else(|er| {
-   		eprintln!("There was a problem clearing the console screen. {}
-     			ATA will now close...", er)
-    });
-    
-    let mut action_id = String::from("");
-    while action_id != "Close ATA :(" {
-        action_id = ask_user_action().unwrap_or_else(|er| {
-            eprintln!("There has been a problem using the console to ask you what you want to do. {}
-                    ATA will now close...", er);
-            std::process::exit(1);
-        });
-        
-        clearscreen::clear().unwrap_or_else(|er| {
-       		eprintln!("There was a problem clearing the console screen. {}
-         			ATA will now close...", er)
-        });
-
-        // INSTALL A MOD
-        if action_id == "Install a mod" {
-            let answered_path = ask_for_mod_folder().unwrap_or_else(|er| {
-                eprintln!("There was a problem using the console for asking for the compressed mod folder. {}
-                        ATA will now close...", er);
-                std::process::exit(1);
-            });
-            
-            let answered_name = ask_user_name_for_mod().unwrap_or_else(|er| {
-                eprintln!("There was a problem using the console for asking for the compressed mod folder. {}
-                        ATA will now close...", er);
-                std::process::exit(1);
-            });
-
-        	let installed_mod = install_mod(&answered_path, &mut current_config, answered_name).unwrap_or_else(|er| {
-             	eprintln!("There was a problem installing the mod. {}
-                        ATA will now close...", er);
-               	std::process::exit(1);
-            });
-
-            println!("\nMOD INSTALLED");
-            println!("{}", installed_mod);
-        }
-        // UNINSTALL A MOD
-        else if action_id == "Uninstall a mod" {
-            let mod_to_uninstall = ask_for_mod_name().unwrap_or_else(|er| {
-                eprintln!("There was a problem using the console for asking for the compressed mod folder. {}
-                        ATA will now close...", er);
-                std::process::exit(1);
-            });
-
-        	let uninstalled_mod_index = uninstall_mod(&mut current_config, mod_to_uninstall).unwrap_or_else(|er| {
-            	eprintln!("There was a problem uninstalling the mod. {}
-                        ATA will now close...", er);
-              	std::process::exit(1);
-            });
-
-            current_config.remove_mod(uninstalled_mod_index).unwrap_or_else(|er| {
-                eprintln!("There was a problem removing the newly installed mod to the data file. {}
-                        ATA will now close...", er);
-                std::process::exit(1);
-            })
-        }
-        // PRINT THE LIST OF INSTALLED MODS
-        else if action_id == "List mods" {
-            list_mods(&current_config.mods);
-        }
-        else if action_id == "Enable a mod" {
-            let name = ask_for_mod_name().unwrap_or_else(|er| {
-                eprintln!("There was a problem using the console for asking for the compressed mod folder. {}
-                        ATA will now close...", er);
-                std::process::exit(1);
-            });
-
-            let enabled_mod = enable_mod(&mut current_config, name).unwrap_or_else(|er| {
-                eprintln!("There was a problem enabling the mod. {}
-                        ATA will now close...", er);
-                std::process::exit(1);
-            });
-            
-            println!("\nENABLED: {}", enabled_mod);
-        }
-        else if action_id == "Disable a mod" {
-        	let name = ask_for_mod_name().unwrap_or_else(|er| {
-            	eprintln!("There was a problem using the console for asking for the compressed mod folder. {}
-                    	ATA will now close...", er);
-             	std::process::exit(1);
-         	});
-
-            let disabled_mod = disable_mod(&mut current_config, name).unwrap_or_else(|er| {
-                eprintln!("There was a problem disabling the mod. {}
-                        ATA will now close...", er);
-                std::process::exit(1);
-            });
-            
-            println!("\nDISABLED: {}", disabled_mod);
-        }
-        else if action_id != "Close ATA :(" {
-            clearscreen::clear().unwrap_or_else(|er| {
-           		eprintln!("There was a problem clearing the console screen. {}
-             			ATA will now close...", er)
-            });
-
-            println!("\"{}\" is not a valid action id (Select one of the options displayed in the menu)", action_id);
-        }
-    }
-
-    println!("Thank you for using ATA.\n\t\tHappy Automata :)")
+    #[arg(long="disable", short='d', value_name = "NAME",
+        help="Disable a mod by its name")]
+    disable: Option<String>,
 }
 
 
 
+fn main() {
+    let args = Args::parse();
+
+    let mut config = Config::load_config().unwrap_or_else(|err| {
+        eprintln!("Problem loading config: {}", err);
+        std::process::exit(1);
+    });
+
+    if let Some(params) = args.install {
+        let installed_mod = install_mod(&PathBuf::from(&params[0]), &mut config, params[1].clone())
+            .unwrap_or_else(|er| { eprintln!("Install failed: {}", er); std::process::exit(1); });
+        println!("{}", json(&[installed_mod]));
+    }
+    else if let Some(name) = args.uninstall {
+        let uninstalled_mod = uninstall_mod(&mut config, name)
+            .unwrap_or_else(|er| { eprintln!("Uninstall failed: {}", er); std::process::exit(1); });
+        println!("{}", json(&[uninstalled_mod]));
+    }
+    else if args.list {
+        list_mods(&config.mods);
+    }
+    else if let Some(name) = args.enable {
+        let enabled_mod = enable_mod(&mut config, name)
+            .unwrap_or_else(|er| { eprintln!("Enable failed: {}", er); std::process::exit(1); });
+        println!("{}", json(&[enabled_mod]));
+    }
+    else if let Some(name) = args.disable {
+        let disabled_mod = disable_mod(&mut config, name)
+            .unwrap_or_else(|er| { eprintln!("Disable failed: {}", er); std::process::exit(1); });
+        println!("{}", json(&[disabled_mod]));
+    }
+    else {
+        eprintln!("No command given");
+        std::process::exit(1);
+    }
+}
 
 
 
-/* ---------------------------- */
-/*   FLAGS FOR QUICK FEATURES   */
-/* ---------------------------- */
-
-#[derive(Parser)]
-#[command(
-    name = "ATA",
-    version = "0.01",
-    about = "Accord's Timeline Alterer, the NieR Automata mod manager for Linux"
-)]
-struct Args {
-    folder_path: String,
-    mod_name: String,
-    // Will add arguments here
+fn json(mod_returned: &[Mod]) -> String {
+    let json = serde_json::to_string(mod_returned).unwrap();
+    
+    json
 }

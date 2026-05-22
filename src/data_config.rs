@@ -153,8 +153,10 @@ impl Config {
     /// # Returns
     /// - `Some(&mut Mod)` if a mod with that name is found
     /// - `None` otherwise
-    pub fn get_mod_by_name(&mut self, name: &str) -> Option<&mut Mod> {
-        self.mods.iter_mut().find(|m| m.name == name)
+    pub fn get_mod_by_name(&mut self, name: &str) -> Option<(usize, Mod)> {
+        self.mods.iter_mut().enumerate()
+            .find(|(_, m)| m.name == name)
+            .map(|(i, m)| (i, m.clone()))
     }
     
     /// Creates a Config with data retrieved from the config file (*~/.config/ATA/data.json*)
