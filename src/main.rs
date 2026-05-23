@@ -73,7 +73,7 @@ fn main() {
         println!("{}", json(&[uninstalled_mod]));
     }
     else if args.list {
-        list_mods(&config.mods);
+        json(&config.mods);
     }
     else if let Some(name) = args.enable {
         let enabled_mod = enable_mod(&mut config, name)
