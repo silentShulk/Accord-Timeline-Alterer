@@ -31,22 +31,6 @@ pub enum EnablingDisablingError {
 
 
 
-pub fn list_mods(mods: &Vec<Mod>) {
-    println!("List of mods:\n");
-    for installed_mod in mods {
-        println!("\t- {}\n", installed_mod.name);
-        
-        println!("\t\tFiles: ");
-        for file in installed_mod.files.clone() {
-            println!("\t\t- {:?}", file)
-        }
-        
-        println!("Enabled: {}", if installed_mod.enabled==true {"Yes"} else {"No"});
-        
-        println!("Mod Type: {}", installed_mod.mod_type)
-    }
-}
-
 pub fn enable_mod(config: &mut Config, mod_name: String) -> Result<Mod, EnablingDisablingError>  {
 	let Some(mut mod_to_enable) = config.get_mod_by_name(&mod_name) else {
 		return Err(EnablingDisablingError::ModNotFound(mod_name))

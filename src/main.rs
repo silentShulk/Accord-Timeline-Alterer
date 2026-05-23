@@ -23,7 +23,7 @@ mod installed_mod_managing;
 
 use installation::install_mod;
 use uninstallation::uninstall_mod;
-use installed_mod_managing::{list_mods, enable_mod, disable_mod};
+use installed_mod_managing::{enable_mod, disable_mod};
 
 
 
@@ -73,7 +73,7 @@ fn main() {
         println!("{}", json(&[uninstalled_mod]));
     }
     else if args.list {
-        json(&config.mods);
+        println!("{}", json(&config.mods));
     }
     else if let Some(name) = args.enable {
         let enabled_mod = enable_mod(&mut config, name)
