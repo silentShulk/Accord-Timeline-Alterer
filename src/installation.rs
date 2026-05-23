@@ -26,6 +26,8 @@ use unrar::Archive;
 
 use crate::data_config::{Config, ConfigInteractionError, Mod, ModType};
 
+use chrono::Utc;
+
 
 
 /// Installs a mod from a compressed archive and saves it in a config with user-decided name
@@ -61,6 +63,8 @@ pub fn install_mod(compressed_mod_folder_path: &Path, config: &mut Config, answe
         return Err(InstallationError::FileNotFound(compressed_mod_folder_path.to_path_buf()));
     }
 
+    config.name_exists(&answered_name)?;
+
     // Unzip the mod folder
     let mut mod_folder_path = decompress_folder(&compressed_mod_folder_path)?;
 
@@ -71,11 +75,11 @@ pub fn install_mod(compressed_mod_folder_path: &Path, config: &mut Config, answe
     // Install the mod contained in the folder following the correct installation method
     let mod_files =install(&mod_data.0, &mod_data.1, &config.game_path)?;
     
-    let installed_mod = Mod::new(answered_name, mod_files, true, mod_data.0);
+    let installed_mod = Mod::new(answered_name, mod_files, true, mod_data.0, Utc::now());
 
     // Updates config
    	config.save_new_mod(&installed_mod)
-        .map_err(|er| InstallationError::DataSaving(er))?;
+        .map_err(|er| InstallationError::Config(er))?;
 
     Ok(installed_mod)
 }
@@ -136,7 +140,7 @@ pub enum InstallationError {
     
     // Data saving
     #[error("Couldn't update data file (~/.config/ATA/data.json). {0}")]
-    DataSaving(#[from] ConfigInteractionError),
+    Config(#[from] ConfigInteractionError),
 }
 
 
