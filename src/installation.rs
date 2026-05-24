@@ -62,21 +62,21 @@ pub fn install_mod(compressed_mod_folder_path: &Path, config: &mut Config, answe
     if !compressed_mod_folder_path.exists() {
         return Err(InstallationError::FileNotFound(compressed_mod_folder_path.to_path_buf()));
     }
-
+    
     config.name_exists(&answered_name)?;
-
+    
     // Unzip the mod folder
     let mut mod_folder_path = decompress_folder(&compressed_mod_folder_path)?;
-
+    
     // Get the type of mod contained
     let mod_data = get_mod_data(&mut mod_folder_path)?
        	.ok_or(InstallationError::ModlessFolder(mod_folder_path.clone()))?;
-
-    // Install the mod contained in the folder following the correct installation method
-    let mod_files =install(&mod_data.0, &mod_data.1, &config.game_path)?;
     
+    // Install the mod contained in the folder following the correct installation method
+    let mod_files = install(&mod_data.0, &mod_data.1, &config.game_path)?;
+   
     let installed_mod = Mod::new(answered_name, mod_files, true, mod_data.0, Utc::now());
-
+    
     // Updates config
    	config.save_new_mod(&installed_mod)
         .map_err(|er| InstallationError::Config(er))?;
@@ -112,7 +112,7 @@ pub enum InstallationError {
     #[error("{0} is of an unsupported compression type (supported types are .zip, .7z .rar)")]
     UnsupportedCompression(PathBuf),
     
-    #[error("Couldn't access/open {0}")]
+    #[error("Couldn't access/open a file. {0}")]
     FileAccessing(#[from] std::io::Error),
     
     #[error("Couldn't extract zip file {0}")]

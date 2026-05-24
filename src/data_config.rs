@@ -234,9 +234,9 @@ impl Config {
     pub fn name_exists(&self, name: &String) -> Result<String, ConfigInteractionError> {
         let exists = self.mods.iter().any(|m| &m.name == name);
         if exists {
-            Ok(name.clone())
-        } else {
             Err(ConfigInteractionError::ModNameExists(name.clone()))
+        } else {
+            Ok(name.clone())
         }
     }
     
@@ -259,8 +259,8 @@ impl Config {
     /// # Returns
     /// * `Some(&mut Mod)` if a mod with that name is found
     /// * `None` otherwise
-    pub fn get_mod_by_name(&mut self, name: &str) -> Option<(usize, Mod)> {
-        self.mods.iter_mut().enumerate()
+    pub fn get_mod_by_name(&self, name: &str) -> Option<(usize, Mod)> {
+        self.mods.iter().enumerate()
             .find(|(_, m)| m.name == name)
             .map(|(i, m)| (i, m.clone()))
     }
@@ -275,6 +275,19 @@ impl Config {
         self.mods.remove(index_to_remove);
 		self.update_data_file()
 	}       
+
+	/// Switches the state of a mod (enabled/disabled) and updates the data file with new state and file location
+	/// 
+	/// # Errors
+	/// * [`ConfigInteractionError::HomeEnvNotFound`] if the $HOME environment variable is not present
+	/// * [`ConfigInteractionError::DataFileAccessing`] if the data file cannot be accessed
+	/// * [`ConfigInteractionError::JsonReading`] if the data file cannot be parsed
+	pub fn switch_mod_state(&mut self, index: usize, new_files: Vec<PathBuf>) -> Result<(), ConfigInteractionError> {
+        self.mods[index].files = new_files;
+        self.mods[index].enabled = !self.mods[index].enabled;
+        
+        self.update_data_file()
+	}
 
 	/// Recreates the data file with updated data from the current config
 	/// 
