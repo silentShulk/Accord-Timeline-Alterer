@@ -23,6 +23,8 @@ use dirs::config_dir;
 use chrono::DateTime;
 use chrono::Utc;
 
+use shellexpand::full;
+
 
 
 /// Errors that could occur during interactions with the saved data
@@ -226,7 +228,18 @@ impl Config {
 
         let data_file = File::open(data_file_path)?;
         let reader = BufReader::new(data_file);
-        let contents = serde_json::from_reader(reader)?;
+        let mut contents: Config= serde_json::from_reader(reader)?;
+
+        let path_str = contents.game_path.to_string_lossy().into_owned();
+        let expanded = full(&path_str).map_err(|_| ConfigInteractionError::HomeEnvNotFound(VarError::NotPresent))?;
+        contents.game_path = PathBuf::from(expanded.as_ref());
+
+        for m in &mut contents.mods {
+            m.files = m.files.iter().map(|f| {
+                let s = f.to_string_lossy().into_owned();
+                PathBuf::from(full(&s).map(|e| e.into_owned()).unwrap_or(s))
+            }).collect();
+        }
 
         Ok(contents)
     }
