@@ -4,11 +4,11 @@ use std::path::PathBuf;
 
 use thiserror::Error;
 
-use crate::data_config::{Config, Mod, ConfigInteractionError};
+use crate::data::{Data, Mod, DataInteractionError};
 
 
 
-pub fn uninstall_mod(config: &mut Config, mod_name: String) -> Result<Mod, UninstallationError> {
+pub fn uninstall_mod(config: &mut Data, mod_name: String) -> Result<Mod, UninstallationError> {
     let Some(mod_to_uninstall) = config.get_mod_by_name(&mod_name) else {
         return Err(UninstallationError::ModNotFound(mod_name));
     };
@@ -34,8 +34,8 @@ pub enum UninstallationError {
     #[error("Couldn't remove {0} from the game's directory")]
     FileDeletion(PathBuf, std::io::Error),
 
-    #[error("Couldn't update data file (~/.config/ATA/data.json). {0}")]
-    DataSaving(#[from] ConfigInteractionError),
+    #[error("Couldn't update data file (data.json found inside data dir of OS). {0}")]
+    DataSaving(#[from] DataInteractionError),
 }
 
 

@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use thiserror::Error;
 
-use crate::data_config::{Config, Mod, ConfigInteractionError};
+use crate::data::{Data, Mod, DataInteractionError};
 
 
 
@@ -25,14 +25,18 @@ pub enum EnablingDisablingError {
     #[error("Couldn't move file from downloaded folder to game folder. {0}")]
     Renaming(#[from] std::io::Error),
     
-    #[error("Couldn't update data file (~/.config/ATA/data.json) to add newly installed mod")]
-    DataSaving(#[from] ConfigInteractionError)
+    #[error("Couldn't update data file (data.json found inside data dir of OS). {0}")]
+    DataSaving(#[from] DataInteractionError)
 }
 
 
 
-pub fn enable_mod(config: &mut Config, mod_name: String) -> Result<Mod, EnablingDisablingError>  {
-	let Some(mod_to_enable) = config.get_mod_by_name(&mod_name) else {
+pub fn list_mods(data: &Data) -> Vec<Mod> {
+	data.mods.clone()
+}
+
+pub fn enable_mod(data: &mut Data, mod_name: String) -> Result<Mod, EnablingDisablingError>  {
+	let Some(mod_to_enable) = data.get_mod_by_name(&mod_name) else {
 		return Err(EnablingDisablingError::ModNotFound(mod_name))
 	};
 	let mut updated_files: Vec<PathBuf> = vec![];
@@ -53,13 +57,13 @@ pub fn enable_mod(config: &mut Config, mod_name: String) -> Result<Mod, Enabling
         updated_files.push(new_path);
     }
 
-    config.switch_mod_state(mod_to_enable.0, updated_files)?;
+    data.switch_mod_state(mod_to_enable.0, updated_files)?;
     
-    Ok(config.mods[mod_to_enable.0].clone())
+    Ok(data.mods[mod_to_enable.0].clone())
 }
 
-pub fn disable_mod(config: &mut Config, mod_name: String) -> Result<Mod, EnablingDisablingError>  {
-	let Some(mod_to_disable) = config.get_mod_by_name(&mod_name) else {
+pub fn disable_mod(data: &mut Data, mod_name: String) -> Result<Mod, EnablingDisablingError>  {
+	let Some(mod_to_disable) = data.get_mod_by_name(&mod_name) else {
 		return Err(EnablingDisablingError::ModNotFound(mod_name))
 	};
 	let mut updated_files: Vec<PathBuf> = vec![];
@@ -81,7 +85,7 @@ pub fn disable_mod(config: &mut Config, mod_name: String) -> Result<Mod, Enablin
         updated_files.push(disabled_folder.join(filename));
     }
     
-    config.switch_mod_state(mod_to_disable.0, updated_files)?;
+    data.switch_mod_state(mod_to_disable.0, updated_files)?;
     
-    Ok(config.mods[mod_to_disable.0].clone())
+    Ok(data.mods[mod_to_disable.0].clone())
 }

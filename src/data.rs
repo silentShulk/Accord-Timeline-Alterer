@@ -1,12 +1,12 @@
-//! **data_config** is a module that declares Types and Functions
+//! **data_management** is a module that declares Types and Functions
 //! for interacting with saved data
 //! 
-//! In the case of ATA the saved data is store inside a 
-//! "data.json" file in *~/.config/ATA*
+//! In the case of ATA the saved data is stored inside a 
+//! "data.json" file in *~/.local/share/ATA*
 
 use std::fs::File;
 
-use std::env::{VarError, var};
+use std::env::VarError;
 
 use std::io::BufReader;
 
@@ -18,7 +18,7 @@ use thiserror::Error;
 
 use serde::{Serialize, Deserialize};
 
-use dirs::config_dir;
+use dirs;
 
 use chrono::DateTime;
 use chrono::Utc;
@@ -29,23 +29,23 @@ use shellexpand::full;
 
 /// Errors that could occur during interactions with the saved data
 #[derive(Error, Debug)]
-pub enum ConfigInteractionError {
+pub enum DataInteractionError {
     /// The $HOME environment variable is not present in the system
     /// 
     /// I have no idea how this could possibly happen on a working Linux installation
     #[error("The $HOME env isn't present in your system (wtf). {0}")]
     HomeEnvNotFound(#[from] VarError),
     
-    /// The data.json file in *~/.config/ATA* were impossible access
+    /// The data.json file in *~/.local/share/ATA* could not be accessed
     /// 
     /// It could either be absent, have had its name changed or have gotten corrupted
-    #[error("Coudln't access data.json file (found inside config dir of OS). {0}", )]
+    #[error("Couldn't access data file (data.json found inside data dir of OS). {0}")]
     DataFileAccessing(#[from] std::io::Error),
     
     /// The contents of data.json were impossible to read
     /// 
     /// This could be because either the file is corrupted or contains invalid JSON
-    #[error("Unable to read contents of data.json. {0}")]
+    #[error("Unable to read contents of data file (data.json found inside data dir of OS). {0}")]
     JsonReading(#[from] serde_json::Error),
 
     #[error("The mod name '{0}' already exists")]
@@ -57,7 +57,7 @@ pub enum ConfigInteractionError {
 /// Mod types supported by ATA
 ///
 /// Mod types not currently supported are not generic, but mod-specific (like NAIOM)
-#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub enum ModType {
     /// `DLL` mods are unique mods
     /// They contain **dll** files and other files
@@ -91,7 +91,7 @@ impl ModType {
     /// * *data/bg/* for world models
     /// * *data/movie/* for cutscene replacements
     /// * *idk* for reshade presets
-    pub fn get_corresponding_folder(&self) -> String{
+    pub fn get_corresponding_folder(&self) -> String {
         match self {
             ModType::DLL => String::from(""),
             ModType::Textures => String::from("SK_Res/inject/textures/"),
@@ -99,11 +99,11 @@ impl ModType {
             ModType::WeaponModels => String::from("data/wp/"),
             ModType::WorldModels => String::from("data/bg/"),
             ModType::CutsceneReplacements => String::from("data/movie/"),
-            ModType::ReshadePreset => String::from("idk")
+            ModType::ReshadePreset => String::from("idk"),
         }
     }
 
-    /// Returns a short ID for the mod, usually the starting letters of each word.
+    /// Returns a short ID for the ModType, usually the starting letters of each word.
     /// 
     /// # Returns
     /// A string slice containing the ID.
@@ -150,7 +150,7 @@ pub struct Mod {
     /// Whether the mod is enabled or not
     pub enabled: bool,
     /// Type of the mod
-    pub mod_type: ModType,  
+    pub mod_type: ModType,
     /// Date and time the mod was installed
     pub install_date: DateTime<Utc>,
     /// Unique identifier for the mod
@@ -175,6 +175,7 @@ impl Mod {
             install_date,
         }
     }
+
     /// Returns the UID of the mod based on its name, type and installation date
     /// 
     /// # Arguments
@@ -184,55 +185,50 @@ impl Mod {
     /// 
     /// # Returns
     /// A String containing the UID of the mod
-    fn get_uid(mod_name: &String, mod_type: &ModType, install_date: &DateTime<Utc>) -> String {
+    fn get_uid(mod_name: &str, mod_type: &ModType, install_date: &DateTime<Utc>) -> String {
         let name = &mod_name[0..1];
-        let m_type = &mod_type.get_id();
-        let date = &install_date.format("%Y%m%d%H%M%S").to_string();
-        
+        let m_type = mod_type.get_id();
+        let date = install_date.format("%Y%m%d%H%M%S").to_string();
+
         format!("{}{}{}", name, m_type, date)
     }
 }
 impl fmt::Display for Mod {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		let mod_description = format!("Name: {}\n\tFiles location: {:?}\n\tEnabled? {}\n\tMod Type: {}",
-			self.name, self.mod_type.get_corresponding_folder(), if self.enabled {"Yes"} else {"No"}, self.mod_type);
-		
-		write!(f, "{}", mod_description)
-	}
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mod_description = format!(
+            "Name: {}\n\tFiles location: {:?}\n\tEnabled? {}\n\tMod Type: {}",
+            self.name,
+            self.mod_type.get_corresponding_folder(),
+            if self.enabled { "Yes" } else { "No" },
+            self.mod_type,
+        );
+        write!(f, "{}", mod_description)
+    }
 }
 
-/// Holds the data regarding the user's installation of mods with ATA
+/// Holds the runtime state of ATA: the list of installed mods.
 #[derive(Serialize, Deserialize)]
-pub struct Config {
-    /// Path to the game folder
-    pub game_path: PathBuf,
+pub struct Data {
     /// List of mods installed
     pub mods: Vec<Mod>,
 }
-impl Config {
-    /// Creates a Config with data retrieved from the config file (*~/.config/ATA/data.json*)
-    /// 
-    /// # Returns
-    /// A new `Config` instance with the data from the config file
+impl Data {
+    /// Creates a Data instance from the data file (*~/.local/share/ATA/data.json*)
     /// 
     /// # Errors
-    /// * [`ConfigInteractionError::HomeEnvNotFound`] if the $HOME environment variable is not present
-    /// * [`ConfigInteractionError::DataFileAccessing`] if the data file cannot be accessed
-    /// * [`ConfigInteractionError::JsonReading`] if the data file cannot be parsed
-    pub fn load_config() -> Result<Self, ConfigInteractionError> {
-        let config_dir = config_dir()
-            .ok_or(ConfigInteractionError::HomeEnvNotFound(VarError::NotPresent))?;
-        let data_file_path = PathBuf::from(config_dir)
+    /// * [`DataInteractionError::HomeEnvNotFound`] if the data directory cannot be determined
+    /// * [`DataInteractionError::DataFileAccessing`] if the data file cannot be accessed
+    /// * [`DataInteractionError::JsonReading`] if the data file cannot be parsed
+    pub fn load_data() -> Result<Self, DataInteractionError> {
+        let data_dir = dirs::data_dir()
+            .ok_or(DataInteractionError::HomeEnvNotFound(VarError::NotPresent))?;
+        let data_file_path = PathBuf::from(data_dir)
             .join("ATA")
             .join("data.json");
 
         let data_file = File::open(data_file_path)?;
         let reader = BufReader::new(data_file);
-        let mut contents: Config= serde_json::from_reader(reader)?;
-
-        let path_str = contents.game_path.to_string_lossy().into_owned();
-        let expanded = full(&path_str).map_err(|_| ConfigInteractionError::HomeEnvNotFound(VarError::NotPresent))?;
-        contents.game_path = PathBuf::from(expanded.as_ref());
+        let mut contents: Data = serde_json::from_reader(reader)?;
 
         for m in &mut contents.mods {
             m.files = m.files.iter().map(|f| {
@@ -244,80 +240,67 @@ impl Config {
         Ok(contents)
     }
 
-    pub fn name_exists(&self, name: &String) -> Result<String, ConfigInteractionError> {
-        let exists = self.mods.iter().any(|m| &m.name == name);
-        if exists {
-            Err(ConfigInteractionError::ModNameExists(name.clone()))
+    /// Returns `Ok(name)` if the name is not already taken, `Err` otherwise
+    pub fn name_exists(&self, name: &str) -> Result<(), DataInteractionError> {
+        if self.mods.iter().any(|m| m.name == name) {
+            Err(DataInteractionError::ModNameExists(name.to_owned()))
         } else {
-            Ok(name.clone())
+            Ok(())
         }
     }
-    
-    /// Saves a new mod to the config and updates the data file
+
+    /// Saves a new mod to the Data struct and writes the data file
     /// 
     /// # Errors
-    /// * [`ConfigInteractionError::HomeEnvNotFound`] if the $HOME environment variable is not present
-    /// * [`ConfigInteractionError::DataFileAccessing`] if the data file cannot be accessed
-    /// * [`ConfigInteractionError::JsonReading`] if the data file cannot be parsed
-	pub fn save_new_mod(&mut self, new_mod: &Mod) -> Result<(), ConfigInteractionError>{
-		self.mods.push(new_mod.clone());
-		self.update_data_file()
-	}
-    
-    /// Searches if a mod with the specified name exists
-    /// 
-    /// # Arguments
-    /// * `name` - Name of the mod to search for
-    /// 
-    /// # Returns
-    /// * `Some(&mut Mod)` if a mod with that name is found
-    /// * `None` otherwise
+    /// * [`DataInteractionError::HomeEnvNotFound`] if the data directory cannot be determined
+    /// * [`DataInteractionError::DataFileAccessing`] if the data file cannot be accessed
+    /// * [`DataInteractionError::JsonReading`] if the data file cannot be serialized
+    pub fn save_new_mod(&mut self, new_mod: &Mod) -> Result<(), DataInteractionError> {
+        self.mods.push(new_mod.clone());
+        self.update_data_file()
+    }
+
+    /// Returns the index and a clone of the mod with the given name, if it exists
     pub fn get_mod_by_name(&self, name: &str) -> Option<(usize, Mod)> {
         self.mods.iter().enumerate()
             .find(|(_, m)| m.name == name)
             .map(|(i, m)| (i, m.clone()))
     }
-    
-    /// Removes a mod from the config and updates the data file
+
+    /// Removes the mod at `index_to_remove` and writes the data file
     /// 
     /// # Errors
-    /// * [`ConfigInteractionError::HomeEnvNotFound`] if the $HOME environment variable is not present
-    /// * [`ConfigInteractionError::DataFileAccessing`] if the data file cannot be accessed
-    /// * [`ConfigInteractionError::JsonReading`] if the data file cannot be parsed
-	pub fn remove_mod(&mut self, index_to_remove: usize) -> Result<(), ConfigInteractionError> {
+    /// * [`DataInteractionError::HomeEnvNotFound`] if the data directory cannot be determined
+    /// * [`DataInteractionError::DataFileAccessing`] if the data file cannot be accessed
+    /// * [`DataInteractionError::JsonReading`] if the data file cannot be serialized
+    pub fn remove_mod(&mut self, index_to_remove: usize) -> Result<(), DataInteractionError> {
         self.mods.remove(index_to_remove);
-		self.update_data_file()
-	}       
+        self.update_data_file()
+    }
 
-	/// Switches the state of a mod (enabled/disabled) and updates the data file with new state and file location
-	/// 
-	/// # Errors
-	/// * [`ConfigInteractionError::HomeEnvNotFound`] if the $HOME environment variable is not present
-	/// * [`ConfigInteractionError::DataFileAccessing`] if the data file cannot be accessed
-	/// * [`ConfigInteractionError::JsonReading`] if the data file cannot be parsed
-	pub fn switch_mod_state(&mut self, index: usize, new_files: Vec<PathBuf>) -> Result<(), ConfigInteractionError> {
+    /// Toggles the enabled state of the mod at `index` and updates its file list, then writes the data file
+    /// 
+    /// # Errors
+    /// * [`DataInteractionError::HomeEnvNotFound`] if the data directory cannot be determined
+    /// * [`DataInteractionError::DataFileAccessing`] if the data file cannot be accessed
+    /// * [`DataInteractionError::JsonReading`] if the data file cannot be serialized
+    pub fn switch_mod_state(&mut self, index: usize, new_files: Vec<PathBuf>) -> Result<(), DataInteractionError> {
         self.mods[index].files = new_files;
         self.mods[index].enabled = !self.mods[index].enabled;
-        
         self.update_data_file()
-	}
+    }
 
-	/// Recreates the data file with updated data from the current config
-	/// 
-    /// # Errors
-    /// * [`ConfigInteractionError::HomeEnvNotFound`] if the $HOME environment variable is not present
-    /// * [`ConfigInteractionError::DataFileAccessing`] if the data file cannot be accessed
-    /// * [`ConfigInteractionError::JsonReading`] if the data file cannot be parsed
-    fn update_data_file(&self) -> Result<(), ConfigInteractionError> {
-    	let home_dir = var("HOME")?;
-     	let data_file_path = PathBuf::from(home_dir)
-        	.join(".config")
-         	.join("ATA")
-          	.join("data.json");
-    
-    	let data_file = File::create(data_file_path)?;
-    	serde_json::to_writer_pretty(data_file, &self)?;
-     
-     	Ok(())
+    /// Rewrites the data file with the current in-memory state
+    fn update_data_file(&self) -> Result<(), DataInteractionError> {
+        let data_dir = dirs::data_dir()
+            .ok_or(DataInteractionError::HomeEnvNotFound(VarError::NotPresent))?;
+        let data_file_path = PathBuf::from(data_dir)
+            .join("ATA")
+            .join("data.json");
+
+        let data_file = File::create(data_file_path)?;
+        serde_json::to_writer_pretty(data_file, &self)?;
+
+        Ok(())
     }
 }

@@ -24,7 +24,7 @@ use sevenz_rust::decompress_file;
 
 use unrar::Archive;
 
-use crate::data_config::{Config, ConfigInteractionError, Mod, ModType};
+use crate::data::{Data, DataInteractionError, Mod, ModType};
 
 use chrono::Utc;
 
@@ -56,28 +56,21 @@ use chrono::Utc;
 /// * [`InstallationError::ModlessFolder`] if no mod was reckoned to be present in the folder
 /// * [`InstallationError::InvalidFileName`] if one of the paths to a mod file is either root or ends in `..`
 /// * [`InstallationError::FileCopying`] if a problem occurs during file copying
-/// * [`InstallationError::DataSaving`] if the mod data couldn't be saved to the config file
-pub fn install_mod(compressed_mod_folder_path: &Path, config: &mut Config, answered_name: String) -> Result<Mod, InstallationError> {
-    // Check if it exists
+/// * [`InstallationError::DataSaving`] if the mod data couldn't be saved to the data file
+pub fn install_mod(compressed_mod_folder_path: &Path, config: &mut Data, game_path: &PathBuf, answered_name: String) -> Result<Mod, InstallationError> {
     if !compressed_mod_folder_path.exists() {
         return Err(InstallationError::FileNotFound(compressed_mod_folder_path.to_path_buf()));
     }
-    
     config.name_exists(&answered_name)?;
     
-    // Unzip the mod folder
     let mut mod_folder_path = decompress_folder(&compressed_mod_folder_path)?;
-    
-    // Get the type of mod contained
+
     let mod_data = get_mod_data(&mut mod_folder_path)?
        	.ok_or(InstallationError::ModlessFolder(mod_folder_path.clone()))?;
-    
-    // Install the mod contained in the folder following the correct installation method
-    let mod_files = install(&mod_data.0, &mod_data.1, &config.game_path)?;
-   
-    let installed_mod = Mod::new(answered_name, mod_files, true, mod_data.0, Utc::now());
-    
-    // Updates config
+
+    let mod_files = install(&mod_data.0, &mod_data.1, game_path)?;
+    let installed_mod = Mod::new(answered_name.clone(), mod_files, true, mod_data.0, Utc::now());
+
    	config.save_new_mod(&installed_mod)
         .map_err(|er| InstallationError::Config(er))?;
 
@@ -116,13 +109,13 @@ pub enum InstallationError {
     FileAccessing(#[from] std::io::Error),
     
     #[error("Couldn't extract zip file {0}")]
-    ZipExtracionFailed(#[from] zip::result::ZipError),      // Zip specific
+    ZipExtracionFailed(#[from] zip::result::ZipError),
     
     #[error("Couldn't extract 7z file {0}")]
-    SevenZipExtractionFailed(#[from] sevenz_rust::Error),   // 7z specific
+    SevenZipExtractionFailed(#[from] sevenz_rust::Error),
     
     #[error("Couldn't extract rar file {0}")]
-    RarExtractionFailed(#[from] unrar::error::UnrarError),  // Rar specific
+    RarExtractionFailed(#[from] unrar::error::UnrarError),
     
     // Get mod data
     #[error("Couldn't read entry from mod folder. {0}")]
@@ -139,8 +132,8 @@ pub enum InstallationError {
     FileCopying(PathBuf, PathBuf, std::io::Error),
     
     // Data saving
-    #[error("Couldn't update data file (~/.config/ATA/data.json). {0}")]
-    Config(#[from] ConfigInteractionError),
+    #[error("A config related error occured. {0}")]
+    Config(#[from] DataInteractionError),
 }
 
 

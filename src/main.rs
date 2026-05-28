@@ -10,20 +10,24 @@
 //! 
 //! Main function: [`main`]
 
+
+
+mod data;
+mod installation;
+mod uninstallation;
+mod mod_managing;
+mod settings;
+mod settings_managing;
+
+use data::{Data, Mod};
+use installation::install_mod;
+use uninstallation::uninstall_mod;
+use mod_managing::{enable_mod, disable_mod};
+use settings::Settings;
+
 use std::path::PathBuf;
 
 use clap::Parser;
-
-mod data_config;
-use data_config::{Config, Mod};
-
-mod installation;
-mod uninstallation;
-mod installed_mod_managing;
-
-use installation::install_mod;
-use uninstallation::uninstall_mod;
-use installed_mod_managing::{enable_mod, disable_mod};
 
 
 
@@ -57,13 +61,17 @@ struct Args {
 fn main() {
     let args = Args::parse();
 
-    let mut config = Config::load_config().unwrap_or_else(|err| {
+    let mut config = Data::load_data().unwrap_or_else(|err| {
         eprintln!("Problem loading config: {}", err);
+        std::process::exit(1);
+    });
+    let mut settings = Settings::load_settings().unwrap_or_else(|err| {
+        eprintln!("Problem loading settings: {}", err);
         std::process::exit(1);
     });
 
     if let Some(params) = args.install {
-        let installed_mod = install_mod(&PathBuf::from(&params[0]), &mut config, params[1].clone())
+        let installed_mod = install_mod(&PathBuf::from(&params[0]), &mut config, &settings.game_path, params[1].clone())
             .unwrap_or_else(|er| { eprintln!("Install failed: {}", er); std::process::exit(1); });
         println!("{}", json(&[installed_mod]));
     }
