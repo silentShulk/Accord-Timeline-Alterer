@@ -4,6 +4,8 @@ $steamAppsPath = "$env:USERPROFILE\AppData\Roaming\Steam\steamapps\common\NieRAu
 $configPath    = "$env:APPDATA\ATA"
 $dataPath      = "$env:LOCALAPPDATA\ATA"
 
+$utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+
 # Remove old dirs
 @("data\pl", "data\wp", "data\bg") | ForEach-Object {
     $target = Join-Path $steamAppsPath $_
@@ -23,14 +25,16 @@ $dataPath      = "$env:LOCALAPPDATA\ATA"
 }
 
 # data.json
-@'
-{
-    "mods": []
-}
-'@ | Set-Content -Path "$dataPath\data.json" -Encoding UTF8
+[System.IO.File]::WriteAllText(
+    "$dataPath\data.json",
+    "{`n    `"mods`": []`n}`n",
+    $utf8NoBom
+)
 
 # settings.json
-@"
+[System.IO.File]::WriteAllText(
+    "$configPath\settings.json",
+    @"
 {
   "style": "SilentShulk",
   "palette": "Replicant",
@@ -41,6 +45,8 @@ $dataPath      = "$env:LOCALAPPDATA\ATA"
   "gamePath": "$($steamAppsPath.Replace('\','\\'))\\",
   "discordRichPresence": "Altering NieRAutomata's timelines"
 }
-"@ | Set-Content -Path "$configPath\settings.json" -Encoding UTF8
+"@,
+    $utf8NoBom
+)
 
 Write-Host "Done." -ForegroundColor Green
