@@ -26,7 +26,7 @@ pub fn uninstall_mod(config: &mut Data, mod_name: String) -> Result<Mod, Uninsta
 #[derive(Error, Debug)]
 pub enum UninstallationError {
     #[error("Encountered an error while trying to read/write the console. {0}")]
-    ConsoleInteraction(#[from] std::io::Error),
+    FileAccessing(#[from] std::io::Error),
     
     #[error("No mod named '{0}' found")]
     ModNotFound(String),

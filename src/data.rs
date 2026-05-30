@@ -220,7 +220,7 @@ impl Data {
     /// * [`DataInteractionError::DataFileAccessing`] if the data file cannot be accessed
     /// * [`DataInteractionError::JsonReading`] if the data file cannot be parsed
     pub fn load_data() -> Result<Self, DataInteractionError> {
-        let data_dir = dirs::data_dir()
+        let data_dir = dirs::data_local_dir()
             .ok_or(DataInteractionError::HomeEnvNotFound(VarError::NotPresent))?;
         let data_file_path = PathBuf::from(data_dir)
             .join("ATA")
@@ -292,7 +292,7 @@ impl Data {
 
     /// Rewrites the data file with the current in-memory state
     fn update_data_file(&self) -> Result<(), DataInteractionError> {
-        let data_dir = dirs::data_dir()
+        let data_dir = dirs::data_local_dir()
             .ok_or(DataInteractionError::HomeEnvNotFound(VarError::NotPresent))?;
         let data_file_path = PathBuf::from(data_dir)
             .join("ATA")
