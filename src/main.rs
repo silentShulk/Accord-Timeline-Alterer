@@ -22,7 +22,7 @@ mod settings_managing;
 use data::{Data, Mod};
 use installation::install_mod;
 use uninstallation::uninstall_mod;
-use mod_managing::{enable_mod, disable_mod};
+use mod_managing::{list_mods, enable_mod, disable_mod};
 use settings::Settings;
 
 use std::path::PathBuf;
@@ -61,7 +61,7 @@ struct Args {
 fn main() {
     let args = Args::parse();
 
-    let mut config = Data::load_data().unwrap_or_else(|err| {
+    let mut data = Data::load_data().unwrap_or_else(|err| {
         eprintln!("Problem loading config: {}", err);
         std::process::exit(1);
     });
@@ -71,25 +71,26 @@ fn main() {
     });
 
     if let Some(params) = args.install {
-        let installed_mod = install_mod(&PathBuf::from(&params[0]), &mut config, &settings.game_path, params[1].clone())
+        let installed_mod = install_mod(&PathBuf::from(&params[0]), &mut data, &settings.game_path, params[1].clone())
             .unwrap_or_else(|er| { eprintln!("Install failed: {}", er); std::process::exit(1); });
         println!("{}", json(&[installed_mod]));
     }
     else if let Some(name) = args.uninstall {
-        let uninstalled_mod = uninstall_mod(&mut config, name)
+        let uninstalled_mod = uninstall_mod(&mut data, name)
             .unwrap_or_else(|er| { eprintln!("Uninstall failed: {}", er); std::process::exit(1); });
         println!("{}", json(&[uninstalled_mod]));
     }
     else if args.list {
-        println!("{}", json(&config.mods));
+        let mods = list_mods(&data);
+        json(&mods.into_boxed_slice());
     }
     else if let Some(name) = args.enable {
-        let enabled_mod = enable_mod(&mut config, name)
+        let enabled_mod = enable_mod(&mut data, name)
             .unwrap_or_else(|er| { eprintln!("Enable failed: {}", er); std::process::exit(1); });
         println!("{}", json(&[enabled_mod]));
     }
     else if let Some(name) = args.disable {
-        let disabled_mod = disable_mod(&mut config, name)
+        let disabled_mod = disable_mod(&mut data, name)
             .unwrap_or_else(|er| { eprintln!("Disable failed: {}", er); std::process::exit(1); });
         println!("{}", json(&[disabled_mod]));
     }
