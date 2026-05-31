@@ -26,8 +26,8 @@ cat << 'EOF' > ~/.config/ATA/settings.json
   "sortingOrder": "ModType",
   "filesConflictResolution": "Ask",
   "keepExtractedFolders": true,
-  "extractedFoldersLocation": "/home/cmarco/Downloads/",
-  "gamePath": "/home/cmarco/.local/share/Steam/steamapps/common/NieRAutomata/",
+  "extractedFoldersLocation": "$HOME/Downloads/",
+  "gamePath": "$HOME/.local/share/Steam/steamapps/common/NieRAutomata/",
   "discordRichPresence": "Altering NieRAutomata's timelines"
 }
 EOF

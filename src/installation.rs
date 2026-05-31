@@ -62,7 +62,7 @@ pub fn install_mod(compressed_mod_folder_path: &Path, config: &mut Data, game_pa
         return Err(InstallationError::FileNotFound(compressed_mod_folder_path.to_path_buf()));
     }
     config.name_exists(&answered_name)?;
-    
+
     let mut mod_folder_path = decompress_folder(&compressed_mod_folder_path)?;
 
     let mod_data = get_mod_data(&mut mod_folder_path)?
