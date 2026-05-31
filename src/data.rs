@@ -186,7 +186,7 @@ impl Mod {
     /// # Returns
     /// A String containing the UID of the mod
     fn get_uid(mod_name: &str, mod_type: &ModType, install_date: &DateTime<Utc>) -> String {
-        let name = &mod_name[0..4];
+        let name: String = mod_name.chars().take(4).collect();
         let m_type = mod_type.get_id();
         let date = install_date.format("%d/%m/%Y|%H:%M").to_string();
 
