@@ -31,10 +31,6 @@ pub enum EnablingDisablingError {
 
 
 
-pub fn list_mods(data: &Data) -> Vec<Mod> {
-	data.mods.clone()
-}
-
 pub fn enable_mod(data: &mut Data, mod_name: String) -> Result<Mod, EnablingDisablingError>  {
 	let Some(mod_to_enable) = data.get_mod_by_name(&mod_name) else {
 		return Err(EnablingDisablingError::ModNotFound(mod_name))

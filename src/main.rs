@@ -22,10 +22,10 @@ mod settings_managing;
 use data::{Data, Mod};
 use installation::install_mod;
 use uninstallation::uninstall_mod;
-use mod_managing::{list_mods, enable_mod, disable_mod};
+use mod_managing::{enable_mod, disable_mod};
 use settings::Settings;
 
-use std::path::PathBuf;
+use std::{fmt::format, path::PathBuf};
 
 use clap::Parser;
 
@@ -81,8 +81,7 @@ fn main() {
         println!("{}", json(&[uninstalled_mod]));
     }
     else if args.list {
-        let mods = list_mods(&data);
-        json(&mods.into_boxed_slice());
+        println!("{}", json(&data.mods));
     }
     else if let Some(name) = args.enable {
         let enabled_mod = enable_mod(&mut data, name)
