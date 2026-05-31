@@ -25,27 +25,27 @@ $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 }
 
 # data.json
+$data = [ordered]@{ mods = @() }
 [System.IO.File]::WriteAllText(
     "$dataPath\data.json",
-    "{`n    `"mods`": []`n}`n",
+    ($data | ConvertTo-Json -Depth 10),
     $utf8NoBom
 )
 
 # settings.json
+$settings = [ordered]@{
+    style                    = "SilentShulk"
+    palette                  = "Replicant"
+    sortingOrder             = "ModType"
+    filesConflictResolution  = "Ask"
+    keepExtractedFolders     = $true
+    extractedFoldersLocation = "$env:USERPROFILE\Downloads\"
+    gamePath                 = "$steamAppsPath\"
+    discordRichPresence      = "Altering NieRAutomata's timelines"
+}
 [System.IO.File]::WriteAllText(
     "$configPath\settings.json",
-    @"
-{
-  "style": "SilentShulk",
-  "palette": "Replicant",
-  "sortingOrder": "ModType",
-  "filesConflictResolution": "Ask",
-  "keepExtractedFolders": true,
-  "extractedFoldersLocation": "$env:USERPROFILE\\Downloads\\",
-  "gamePath": "$($steamAppsPath.Replace('\','\\'))\\",
-  "discordRichPresence": "Altering NieRAutomata's timelines"
-}
-"@,
+    ($settings | ConvertTo-Json -Depth 10),
     $utf8NoBom
 )
 
