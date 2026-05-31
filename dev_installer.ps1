@@ -1,8 +1,9 @@
-#Requires -Version 5.1
+# Resolve Steam install path from registry (works regardless of where user installed Steam)
+$steamReg = Get-ItemProperty -Path "HKCU:\Software\Valve\Steam" -Name "SteamPath" -ErrorAction Stop
+$steamAppsPath = Join-Path ($steamReg.SteamPath.Replace('/', '\')) "steamapps\common\NieRAutomata"
 
-$steamAppsPath = "$env:USERPROFILE\AppData\Roaming\Steam\steamapps\common\NieRAutomata"
-$configPath    = "$env:APPDATA\ATA"
-$dataPath      = "$env:LOCALAPPDATA\ATA"
+$configPath = "$env:APPDATA\ATA"
+$dataPath   = "$env:LOCALAPPDATA\ATA"
 
 $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 
@@ -24,11 +25,10 @@ $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
     New-Item -ItemType Directory -Force -Path $_ | Out-Null
 }
 
-# data.json
-$data = [ordered]@{ mods = @() }
+# data.json — literal string avoids PS 5.1 empty-array → null bug
 [System.IO.File]::WriteAllText(
     "$dataPath\data.json",
-    ($data | ConvertTo-Json -Depth 10),
+    '{ "mods": [] }',
     $utf8NoBom
 )
 
