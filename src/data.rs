@@ -91,15 +91,15 @@ impl ModType {
     /// * *data/bg/* for world models
     /// * *data/movie/* for cutscene replacements
     /// * *idk* for reshade presets
-    pub fn get_corresponding_folder(&self) -> String {
+    pub fn get_corresponding_folder(&self) -> PathBuf {
         match self {
-            ModType::DLL => String::from(""),
-            ModType::Textures => String::from("wax/mods/"),
-            ModType::PlayerModels => String::from("data/pl/"),
-            ModType::WeaponModels => String::from("data/wp/"),
-            ModType::WorldModels => String::from("data/bg/"),
-            ModType::CutsceneReplacements => String::from("data/movie/"),
-            ModType::ReshadePreset => String::from("idk"),
+            ModType::DLL => PathBuf::new(),
+            ModType::Textures => PathBuf::from("wax").join("mods"),
+            ModType::PlayerModels => PathBuf::from("data").join("pl"),
+            ModType::WeaponModels => PathBuf::from("data").join("wp"),
+            ModType::WorldModels => PathBuf::from("data").join("bg"),
+            ModType::CutsceneReplacements => PathBuf::from("data").join("movie"),
+            ModType::ReshadePreset => PathBuf::from("idk"),
         }
     }
 
