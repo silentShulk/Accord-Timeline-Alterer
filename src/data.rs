@@ -1,8 +1,16 @@
-//! **data_management** is a module that declares Types and Functions
-//! for interacting with saved data
-//! 
-//! In the case of ATA the saved data is stored inside a 
+//! **data** is a module that declares types and functions
+//! for interacting with saved mod data
+//!
+//! In the case of ATA the saved data is stored inside a
 //! "data.json" file in *~/.local/share/ATA*
+//!
+//! This includes:
+//! * **loading**: Reading the data file into a [`Data`] struct
+//! * **saving**: Writing the current in-memory state back to the data file
+//! * **querying**: Looking up mods by name or checking for name conflicts
+//! * **mutating**: Adding, removing, and toggling the enabled state of mods
+//!
+//! Main types: [`Data`], [`Mod`], [`ModType`]
 
 use std::fs::File;
 
@@ -30,24 +38,26 @@ use shellexpand::full;
 /// Errors that could occur during interactions with the saved data
 #[derive(Error, Debug)]
 pub enum DataInteractionError {
-    /// The $HOME environment variable is not present in the system
-    /// 
-    /// I have no idea how this could possibly happen on a working Linux installation
+    /// The data directory cannot be determined
+    ///
+    /// Occurs when `dirs::data_local_dir()` returns `None`, which should
+    /// never happen on a working Linux installation
     #[error("The $HOME env isn't present in your system (wtf). {0}")]
     HomeEnvNotFound(#[from] VarError),
-    
+
     /// The data.json file in *~/.local/share/ATA* could not be accessed
-    /// 
-    /// It could either be absent, have had its name changed or have gotten corrupted
+    ///
+    /// It could either be absent, have had its name changed, or have gotten corrupted
     #[error("Couldn't access data file (data.json found inside data dir of OS). {0}")]
     DataFileAccessing(#[from] std::io::Error),
-    
+
     /// The contents of data.json were impossible to read
-    /// 
-    /// This could be because either the file is corrupted or contains invalid JSON
+    ///
+    /// This could be because the file is corrupted or contains invalid JSON
     #[error("Unable to read contents of data file (data.json found inside data dir of OS). {0}")]
     JsonReading(#[from] serde_json::Error),
 
+    /// A mod with the given name is already present in the data file
     #[error("The mod name '{0}' already exists")]
     ModNameExists(String),
 }
@@ -74,7 +84,7 @@ pub enum ModType {
     /// `World models` mods contain 3D models for world objects
     /// They contain **dtt/dat** files
     WorldModels,
-    /// `Cutscene replacements` mods contain replacement for the game's cutscenes
+    /// `Cutscene replacements` mods contain replacements for the game's cutscenes
     /// They contain **usm** files
     CutsceneReplacements,
     /// `Reshade presets` mods contain shader presets
@@ -82,15 +92,16 @@ pub enum ModType {
     ReshadePreset,
 }
 impl ModType {
-    /// Returns the folder in which that mod type's files are installed
+    /// Returns the relative subfolder inside the game directory where this mod type's files live
     ///
     /// # Returns
-    /// * *SK_Res/inject/textures/* for textures
-    /// * *data/pl/* for player models
-    /// * *data/wp/* for weapon models
-    /// * *data/bg/* for world models
-    /// * *data/movie/* for cutscene replacements
-    /// * *idk* for reshade presets
+    /// * `wax/mods/` for textures
+    /// * `data/pl/` for player models
+    /// * `data/wp/` for weapon models
+    /// * `data/bg/` for world models
+    /// * `data/movie/` for cutscene replacements
+    /// * `idk/` for reshade presets
+    /// * empty path for DLL mods (game root)
     pub fn get_corresponding_folder(&self) -> PathBuf {
         match self {
             ModType::DLL => PathBuf::new(),
@@ -103,10 +114,10 @@ impl ModType {
         }
     }
 
-    /// Returns a short ID for the ModType, usually the starting letters of each word.
-    /// 
+    /// Returns a short ID for the [`ModType`], used as part of a mod's [`Mod::uid`]
+    ///
     /// # Returns
-    /// A string slice containing the ID.
+    /// A string slice containing the ID:
     /// * `DLL` -> `"Dll"`
     /// * `Textures` -> `"Te"`
     /// * `PlayerModels` -> `"PlMo"`
@@ -140,31 +151,34 @@ impl fmt::Display for ModType {
     }
 }
 
-/// Things to take note about a mod for both mod managing and informing the user
+/// Everything ATA needs to track about an installed mod
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct Mod {
     /// Name of the mod given by the user
     pub name: String,
-    /// Files used by the mod (not the folder containing, list of all files one by one)
+    /// Individual files belonging to the mod (full paths, not the containing folder)
     pub files: Vec<PathBuf>,
-    /// Whether the mod is enabled or not
+    /// Whether the mod is currently active in the game folder
     pub enabled: bool,
-    /// Type of the mod
+    /// Categorises what kind of assets the mod replaces
     pub mod_type: ModType,
-    /// Date and time the mod was installed
+    /// UTC timestamp of when the mod was installed
     pub install_date: DateTime<Utc>,
-    /// Unique identifier for the mod
+    /// Unique identifier derived from the mod's name, type, and install date
     pub uid: String,
 }
 impl Mod {
-    /// Creates a new mod with the given name, files, enabled status, mod type, date of installation and UID
-    /// 
+    /// Creates a new [`Mod`] and generates its [`Mod::uid`] automatically
+    ///
     /// # Arguments
     /// * `name` - Name of the mod given by the user
-    /// * `files` - Files used by the mod (not the folder containing, list of all files one by one)
-    /// * `enabled` - Whether the mod is enabled or not
-    /// * `mod_type` - Type of the mod
-    /// * `install_date` - Date and time the mod was installed
+    /// * `files` - Individual files belonging to the mod (full paths, not the containing folder)
+    /// * `enabled` - Whether the mod is currently active in the game folder
+    /// * `mod_type` - Categorises what kind of assets the mod replaces
+    /// * `install_date` - UTC timestamp of when the mod was installed
+    ///
+    /// # Returns
+    /// * A fully populated [`Mod`] instance with a generated [`Mod::uid`]
     pub fn new(name: String, files: Vec<PathBuf>, enabled: bool, mod_type: ModType, install_date: DateTime<Utc>) -> Self {
         Self {
             uid: Self::get_uid(&name, &mod_type, &install_date),
@@ -176,15 +190,19 @@ impl Mod {
         }
     }
 
-    /// Returns the UID of the mod based on its name, type and installation date
-    /// 
+    /// Builds a unique identifier string from the mod's name, type, and install date
+    ///
+    /// The UID is formed by concatenating the first four characters of the name,
+    /// the type's short ID (see [`ModType::get_id`]), and the install date formatted
+    /// as `dd/mm/yyyy|HH:MM`.
+    ///
     /// # Arguments
     /// * `mod_name` - Name of the mod given by the user
     /// * `mod_type` - Type of the mod
-    /// * `install_date` - Date and time the mod was installed
-    /// 
+    /// * `install_date` - UTC timestamp of when the mod was installed
+    ///
     /// # Returns
-    /// A String containing the UID of the mod
+    /// * A [`String`] containing the generated UID
     fn get_uid(mod_name: &str, mod_type: &ModType, install_date: &DateTime<Utc>) -> String {
         let name: String = mod_name.chars().take(4).collect();
         let m_type = mod_type.get_id();
@@ -206,27 +224,27 @@ impl fmt::Display for Mod {
     }
 }
 
-/// Holds the runtime state of ATA: the list of installed mods.
+/// Holds the runtime state of ATA: the full list of installed mods
 #[derive(Serialize, Deserialize)]
 pub struct Data {
-    /// List of mods installed
+    /// List of all mods currently tracked by ATA
     pub mods: Vec<Mod>,
 }
 impl Data {
-    /// Creates a Data instance from the data file (*~/.local/share/ATA/data.json*)
-    /// 
+    /// Creates a [`Data`] instance from the data file (*~/.local/share/ATA/data.json*)
+    ///
+    /// Also expands any shell variables or `~` present in stored file paths.
+    ///
+    /// # Returns
+    /// * [`Ok`] -> A [`Data`] instance populated from the data file
+    /// * [`Err`] -> The type of error that occurred
+    ///
     /// # Errors
     /// * [`DataInteractionError::HomeEnvNotFound`] if the data directory cannot be determined
-    /// * [`DataInteractionError::DataFileAccessing`] if the data file cannot be accessed
-    /// * [`DataInteractionError::JsonReading`] if the data file cannot be parsed
+    /// * [`DataInteractionError::DataFileAccessing`] if the data file cannot be opened
+    /// * [`DataInteractionError::JsonReading`] if the data file cannot be parsed as JSON
     pub fn load_data() -> Result<Self, DataInteractionError> {
-        let data_dir = dirs::data_local_dir()
-            .ok_or(DataInteractionError::HomeEnvNotFound(VarError::NotPresent))?;
-        let data_file_path = PathBuf::from(data_dir)
-            .join("ATA")
-            .join("data.json");
-
-        let data_file = File::open(data_file_path)?;
+        let data_file = File::open(data_file_path()?)?;
         let reader = BufReader::new(data_file);
         let mut contents: Data = serde_json::from_reader(reader)?;
 
@@ -240,7 +258,17 @@ impl Data {
         Ok(contents)
     }
 
-    /// Returns `Ok(name)` if the name is not already taken, `Err` otherwise
+    /// Checks whether a mod with the given name is already tracked
+    ///
+    /// # Arguments
+    /// * `name` - The candidate mod name to check
+    ///
+    /// # Returns
+    /// * [`Ok`] -> `()` if the name is free to use
+    /// * [`Err`] -> [`DataInteractionError::ModNameExists`] if the name is already taken
+    ///
+    /// # Errors
+    /// * [`DataInteractionError::ModNameExists`] if a mod with `name` already exists
     pub fn name_exists(&self, name: &str) -> Result<(), DataInteractionError> {
         if self.mods.iter().any(|m| m.name == name) {
             Err(DataInteractionError::ModNameExists(name.to_owned()))
@@ -249,58 +277,106 @@ impl Data {
         }
     }
 
-    /// Saves a new mod to the Data struct and writes the data file
-    /// 
+    /// Appends `new_mod` to the in-memory list and writes the data file
+    ///
+    /// # Arguments
+    /// * `new_mod` - The [`Mod`] to add
+    ///
+    /// # Returns
+    /// * [`Ok`] -> `()` on success
+    /// * [`Err`] -> The type of error that occurred
+    ///
     /// # Errors
     /// * [`DataInteractionError::HomeEnvNotFound`] if the data directory cannot be determined
-    /// * [`DataInteractionError::DataFileAccessing`] if the data file cannot be accessed
-    /// * [`DataInteractionError::JsonReading`] if the data file cannot be serialized
+    /// * [`DataInteractionError::DataFileAccessing`] if the data file cannot be written
+    /// * [`DataInteractionError::JsonReading`] if the data cannot be serialized
     pub fn save_new_mod(&mut self, new_mod: &Mod) -> Result<(), DataInteractionError> {
         self.mods.push(new_mod.clone());
         self.update_data_file()
     }
 
-    /// Returns the index and a clone of the mod with the given name, if it exists
+    /// Returns the index and a clone of the mod whose name matches `name`
+    ///
+    /// # Arguments
+    /// * `name` - The name to search for
+    ///
+    /// # Returns
+    /// * [`Some`]`(usize, Mod)` — index in [`Data::mods`] and a clone of the matching mod
+    /// * [`None`] if no mod with that name exists
     pub fn get_mod_by_name(&self, name: &str) -> Option<(usize, Mod)> {
         self.mods.iter().enumerate()
             .find(|(_, m)| m.name == name)
             .map(|(i, m)| (i, m.clone()))
     }
 
-    /// Removes the mod at `index_to_remove` and writes the data file
-    /// 
+    /// Removes the mod at `index_to_remove` from the in-memory list and writes the data file
+    ///
+    /// # Arguments
+    /// * `index_to_remove` - Index into [`Data::mods`] of the mod to remove
+    ///
+    /// # Returns
+    /// * [`Ok`] -> `()` on success
+    /// * [`Err`] -> The type of error that occurred
+    ///
     /// # Errors
     /// * [`DataInteractionError::HomeEnvNotFound`] if the data directory cannot be determined
-    /// * [`DataInteractionError::DataFileAccessing`] if the data file cannot be accessed
-    /// * [`DataInteractionError::JsonReading`] if the data file cannot be serialized
+    /// * [`DataInteractionError::DataFileAccessing`] if the data file cannot be written
+    /// * [`DataInteractionError::JsonReading`] if the data cannot be serialized
     pub fn remove_mod(&mut self, index_to_remove: usize) -> Result<(), DataInteractionError> {
         self.mods.remove(index_to_remove);
         self.update_data_file()
     }
 
-    /// Toggles the enabled state of the mod at `index` and updates its file list, then writes the data file
-    /// 
+    /// Toggles the enabled flag of the mod at `index`, replaces its file list, then writes the data file
+    ///
+    /// # Arguments
+    /// * `index` - Index into [`Data::mods`] of the mod to update
+    /// * `new_files` - Updated list of file paths to store (reflecting the new enabled/disabled location)
+    ///
+    /// # Returns
+    /// * [`Ok`] -> `()` on success
+    /// * [`Err`] -> The type of error that occurred
+    ///
     /// # Errors
     /// * [`DataInteractionError::HomeEnvNotFound`] if the data directory cannot be determined
-    /// * [`DataInteractionError::DataFileAccessing`] if the data file cannot be accessed
-    /// * [`DataInteractionError::JsonReading`] if the data file cannot be serialized
+    /// * [`DataInteractionError::DataFileAccessing`] if the data file cannot be written
+    /// * [`DataInteractionError::JsonReading`] if the data cannot be serialized
     pub fn switch_mod_state(&mut self, index: usize, new_files: Vec<PathBuf>) -> Result<(), DataInteractionError> {
         self.mods[index].files = new_files;
         self.mods[index].enabled = !self.mods[index].enabled;
         self.update_data_file()
     }
 
-    /// Rewrites the data file with the current in-memory state
+    /// Overwrites the data file with the current in-memory state
+    ///
+    /// # Returns
+    /// * [`Ok`] -> `()` on success
+    /// * [`Err`] -> The type of error that occurred
+    ///
+    /// # Errors
+    /// * [`DataInteractionError::HomeEnvNotFound`] if the data directory cannot be determined
+    /// * [`DataInteractionError::DataFileAccessing`] if the data file cannot be created or written
+    /// * [`DataInteractionError::JsonReading`] if the data cannot be serialized
     fn update_data_file(&self) -> Result<(), DataInteractionError> {
-        let data_dir = dirs::data_local_dir()
-            .ok_or(DataInteractionError::HomeEnvNotFound(VarError::NotPresent))?;
-        let data_file_path = PathBuf::from(data_dir)
-            .join("ATA")
-            .join("data.json");
-
-        let data_file = File::create(data_file_path)?;
+        let data_file = File::create(data_file_path()?)?;
         serde_json::to_writer_pretty(data_file, &self)?;
 
         Ok(())
     }
+}
+
+
+
+/// Returns the canonical path to *~/.local/share/ATA/data.json*
+///
+/// Centralised so that [`Data::load_data`] and [`Data::update_data_file`] never
+/// diverge in where they look for the file.
+///
+/// # Returns
+/// * [`Ok`] -> The resolved [`PathBuf`]
+/// * [`Err`] -> [`DataInteractionError::HomeEnvNotFound`] if the data directory cannot be determined
+fn data_file_path() -> Result<PathBuf, DataInteractionError> {
+    let data_dir = dirs::data_local_dir()
+        .ok_or(DataInteractionError::HomeEnvNotFound(VarError::NotPresent))?;
+    Ok(PathBuf::from(data_dir).join("ATA").join("data.json"))
 }
