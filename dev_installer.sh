@@ -22,7 +22,7 @@ EOF
 cat << 'EOF' > ~/.config/ATA/settings.json
 {
   "style": "SilentShulk",
-  "palette": "Replicant",
+  "palette": "Automata",
   "sortingOrder": "ModType",
   "filesConflictResolution": "Ask",
   "keepExtractedFolders": true,

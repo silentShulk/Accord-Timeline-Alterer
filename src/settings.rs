@@ -4,7 +4,7 @@
 //! In the case of ATA the user's settings are saved inside a 
 //! "settings.json" file in *~/.config/ATA*
 
-use std::fs::File;
+use std::{fs::File, str::FromStr};
 
 use std::env::VarError;
 
@@ -36,6 +36,12 @@ pub enum SettingsInteractionError {
     /// The contents of settings.json were impossible to read
     #[error("Unable to read contents of settings file (settings.json found inside config dir of OS). {0}")]
     JsonReading(#[from] serde_json::Error),
+
+    #[error("Unable to parse received setting name ({0}) into and actual setting")]
+    InvalidSettingName(String),
+
+    #[error("Unable to parse received setting value ({0}) into a value acceptable for the given setting")]
+    InvalidSettingValue(String),
 }
 
 
@@ -47,6 +53,17 @@ pub enum Style {
     SilentShulk,
     Beyluta,
 }
+impl FromStr for Style {
+    type Err = SettingsInteractionError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "SilentShulk" => Ok(Self::SilentShulk),
+            "Beyluta" => Ok(Self::Beyluta),
+            _ => Err(SettingsInteractionError::InvalidSettingValue(s.to_string())),
+        }
+    }
+}
 
 /// The color palette applied to the UI
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Default)]
@@ -55,6 +72,18 @@ pub enum Palette {
     Automata,
     Replicant,
 }
+impl FromStr for Palette {
+    type Err = SettingsInteractionError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Automata" => Ok(Self::Automata),
+            "Replicant" => Ok(Self::Replicant),
+            _ => Err(SettingsInteractionError::InvalidSettingValue(s.to_string())),
+        }
+    }
+}
+
 
 /// The order in which installed mods are displayed
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Default)]
@@ -66,6 +95,21 @@ pub enum SortingOrder {
     InstallDate,
     Size,
 }
+impl FromStr for SortingOrder {
+    type Err = SettingsInteractionError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "ModType" => Ok(Self::ModType),
+            "EnableStatus" => Ok(Self::EnableStatus),
+            "Alphabetical" => Ok(Self::Alphabetical),
+            "InstallDate" => Ok(Self::InstallDate),
+            "Size" => Ok(Self::Size),
+            _ => Err(SettingsInteractionError::InvalidSettingValue(s.to_string())),
+        }
+    }
+}
+
 
 /// What ATA does when a mod file would overwrite a file already in the game folder
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Default)]
@@ -75,6 +119,20 @@ pub enum ConflictResolution {
     Overwrite,
     Skip,
 }
+impl FromStr for ConflictResolution {
+    type Err = SettingsInteractionError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Ask" => Ok(Self::Ask),
+            "Overwrite" => Ok(Self::Overwrite),
+            "Skip" => Ok(Self::Skip),
+            _ => Err(SettingsInteractionError::InvalidSettingValue(s.to_string())),
+        }
+    }
+}
+
+
 
 /// All user-configurable settings for ATA
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -144,5 +202,25 @@ impl Settings {
         serde_json::to_writer_pretty(settings_file, &self)?;
 
         Ok(())
+    }
+
+    /// Recognizes the setting that needs to be changed and updates it
+    /// 
+    pub fn update_setting(&mut self, setting: String, value: String) -> Result<Settings, SettingsInteractionError> {
+        match setting.as_str() {
+            "style" => self.style = value.parse::<Style>()?,
+            "palette" => self.palette = value.parse::<Palette>()?,
+            "sortingOrder" => self.sorting_order = value.parse::<SortingOrder>()?,
+            "filesConflictResolution" => self.files_conflict_resolution = value.parse::<ConflictResolution>()?,
+            "keepExtractedFolders" => self.keep_extracted_folders = value.parse::<bool>().map_err(|_| SettingsInteractionError::InvalidSettingName(setting))?,
+            "extractedFoldersLocation" => self.extracted_folders_location = value.parse::<PathBuf>().map_err(|_| SettingsInteractionError::InvalidSettingName(setting))?,
+            "gamePath" => self.game_path = value.parse::<PathBuf>().map_err(|_| SettingsInteractionError::InvalidSettingName(setting))?,
+            "discordRichPresence" => self.discord_rich_presence = value,
+            _ => return Err(SettingsInteractionError::InvalidSettingName(setting)),
+        };
+
+        self.update_settings_file()?;
+
+        Ok(self.clone())
     }
 }

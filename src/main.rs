@@ -17,15 +17,14 @@ mod installation;
 mod uninstallation;
 mod mod_managing;
 mod settings;
-mod settings_managing;
 
-use data::{Data, Mod};
+use data::Data;
 use installation::install_mod;
 use uninstallation::uninstall_mod;
 use mod_managing::{enable_mod, disable_mod};
 use settings::Settings;
 
-use std::{fmt::format, path::PathBuf};
+use std::path::PathBuf;
 
 use clap::Parser;
 
@@ -54,6 +53,10 @@ struct Args {
     #[arg(long="disable", short='d', value_name = "NAME",
         help="Disable a mod by its name")]
     disable: Option<String>,
+
+    #[arg(long="settings", short='s', value_names = ["NAME", "VALUE"],
+        help="Path to the settings file")]
+    settings: Option<Vec<String>>,
 }
 
 
@@ -93,6 +96,11 @@ fn main() {
             .unwrap_or_else(|er| { eprintln!("Disable failed: {}", er); std::process::exit(1); });
         println!("{}", json(&[disabled_mod]));
     }
+    else if let Some(params) = args.settings {
+        let changed_setting = settings.update_setting(params[0].clone(), params[1].clone())
+            .unwrap_or_else(|er| { eprintln!("Settings Change failed: {}", er); std::process::exit(1); });
+        println!("{}", json(&[changed_setting]));
+    }
     else {
         eprintln!("No command given");
         std::process::exit(1);
@@ -101,7 +109,10 @@ fn main() {
 
 
 
-fn json(mod_returned: &[Mod]) -> String {
+fn json<T>(mod_returned: &T) -> String 
+where
+    T: serde::Serialize,
+{
     let json = serde_json::to_string(mod_returned).unwrap();
     
     json
