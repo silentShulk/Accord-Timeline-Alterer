@@ -110,7 +110,7 @@ impl ModType {
             ModType::WeaponModels => PathBuf::from("data").join("wp"),
             ModType::WorldModels => PathBuf::from("data").join("bg"),
             ModType::CutsceneReplacements => PathBuf::from("data").join("movie"),
-            ModType::ReshadePreset => PathBuf::from("idk"),
+            ModType::ReshadePreset => PathBuf::new(),
         }
     }
 
