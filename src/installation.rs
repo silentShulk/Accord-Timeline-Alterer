@@ -68,7 +68,7 @@ pub fn install_mod(compressed_mod_folder_path: &Path, config: &mut Data, game_pa
     let mod_data = get_mod_data(&mut mod_folder_path)?
        	.ok_or(InstallationError::ModlessFolder(mod_folder_path.clone()))?;
 
-    let mod_files = install(&mod_data.0, &mod_data.1, game_path)?;
+    let mod_files = install(&mod_data.0, &mod_data.1, game_path, &answered_name)?;
     let installed_mod = Mod::new(answered_name.clone(), mod_files, true, mod_data.0, Utc::now());
 
    	config.save_new_mod(&installed_mod)
@@ -343,8 +343,12 @@ fn get_mod_data(mod_folder_path: &Path) -> Result<Option<(ModType, Vec<PathBuf>)
 /// * [`InstallationError::FileAccessing`] if a problem occurs during file/folder creation/deletion
 /// * [`InstallationError::InvalidFileName`] if one of the paths to a mod file is either root or ends in `..`
 /// * [`InstallationError::FileCopying`] if a problem occurs during file copying
-fn install(mod_type: &ModType, mod_files: &Vec<PathBuf>, game_path: &PathBuf) -> Result<Vec<PathBuf>, InstallationError> {
-    let installation_folder = game_path.join(mod_type.get_corresponding_folder());
+fn install(mod_type: &ModType, mod_files: &Vec<PathBuf>, game_path: &PathBuf, mod_name: &String) -> Result<Vec<PathBuf>, InstallationError> {
+    let mut installation_folder = game_path.join(mod_type.get_corresponding_folder());
+
+    if mod_type == &ModType::Textures {
+        installation_folder = installation_folder.join(mod_name);
+    }
     
     copy_mod_files(mod_files, PathBuf::from(installation_folder))
 }
