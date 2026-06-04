@@ -276,7 +276,7 @@ impl Settings {
 /// * [`Ok`] -> The resolved [`PathBuf`]
 /// * [`Err`] -> [`SettingsInteractionError::ConfigDirNotFound`] if the config directory cannot be determined
 fn settings_file_path() -> Result<PathBuf, SettingsInteractionError> {
-    let config_dir = dirs::config_dir()
+    let config_dir = dirs::config_local_dir()
         .ok_or(SettingsInteractionError::ConfigDirNotFound(VarError::NotPresent))?;
     Ok(PathBuf::from(config_dir).join("ATA").join("settings.json"))
 }
