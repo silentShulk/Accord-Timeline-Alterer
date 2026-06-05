@@ -21,6 +21,7 @@ mod installation;
 mod uninstallation;
 mod mod_managing;
 mod settings;
+mod paths;
 
 use data::Data;
 use installation::install_mod;
@@ -52,9 +53,9 @@ struct Args {
     uninstall: Option<String>,
 
     /// Print all installed mods as a JSON array and exit
-    #[arg(long="list", short='l',
+    #[arg(long="mods", short='m',
         help="List all installed mods")]
-    list: bool,
+    list_mods: bool,
 
     /// Move the mod's files back into the game directory so the game loads them
     #[arg(long="enable", short='e', value_name = "NAME",
@@ -70,6 +71,10 @@ struct Args {
     #[arg(long="settings", short='s', value_names = ["NAME", "VALUE"],
         help="Path to the settings file")]
     settings: Option<Vec<String>>,
+
+    #[arg(long="list-settings", short='l',
+        help="List all settings and their values")]
+    list_settings: bool
 }
 
 
@@ -100,7 +105,7 @@ fn main() {
             .unwrap_or_else(|er| { eprintln!("Uninstall failed: {}", er); std::process::exit(1); });
         println!("{}", json(&[uninstalled_mod]));
     }
-    else if args.list {
+    else if args.list_mods {
         println!("{}", json(&data.mods));
     }
     else if let Some(name) = args.enable {
@@ -117,6 +122,9 @@ fn main() {
         let changed_setting = settings.update_setting(params[0].clone(), params[1].clone())
             .unwrap_or_else(|er| { eprintln!("Settings Change failed: {}", er); std::process::exit(1); });
         println!("{}", json(&[changed_setting]));
+    }
+    else if args.list_settings {
+        println!("{}", json(&settings))
     }
     else {
         eprintln!("No command given");

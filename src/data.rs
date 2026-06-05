@@ -26,12 +26,12 @@ use thiserror::Error;
 
 use serde::{Serialize, Deserialize};
 
-use dirs;
-
 use chrono::DateTime;
 use chrono::Utc;
 
 use shellexpand::full;
+
+use crate::paths::PATHS;
 
 
 
@@ -244,7 +244,7 @@ impl Data {
     /// * [`DataInteractionError::DataFileAccessing`] if the data file cannot be opened
     /// * [`DataInteractionError::JsonReading`] if the data file cannot be parsed as JSON
     pub fn load_data() -> Result<Self, DataInteractionError> {
-        let data_file = File::open(data_file_path()?)?;
+        let data_file = File::open(&PATHS.data_file)?;
         let reader = BufReader::new(data_file);
         let mut contents: Data = serde_json::from_reader(reader)?;
 
@@ -358,25 +358,9 @@ impl Data {
     /// * [`DataInteractionError::DataFileAccessing`] if the data file cannot be created or written
     /// * [`DataInteractionError::JsonReading`] if the data cannot be serialized
     fn update_data_file(&self) -> Result<(), DataInteractionError> {
-        let data_file = File::create(data_file_path()?)?;
+        let data_file = File::create(&PATHS.data_file)?;
         serde_json::to_writer_pretty(data_file, &self)?;
 
         Ok(())
     }
-}
-
-
-
-/// Returns the canonical path to *~/.local/share/ATA/data.json*
-///
-/// Centralised so that [`Data::load_data`] and [`Data::update_data_file`] never
-/// diverge in where they look for the file.
-///
-/// # Returns
-/// * [`Ok`] -> The resolved [`PathBuf`]
-/// * [`Err`] -> [`DataInteractionError::HomeEnvNotFound`] if the data directory cannot be determined
-fn data_file_path() -> Result<PathBuf, DataInteractionError> {
-    let data_dir = dirs::data_local_dir()
-        .ok_or(DataInteractionError::HomeEnvNotFound(VarError::NotPresent))?;
-    Ok(PathBuf::from(data_dir).join("ATA").join("data.json"))
 }

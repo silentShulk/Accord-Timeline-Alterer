@@ -23,9 +23,9 @@ use thiserror::Error;
 
 use serde::{Serialize, Deserialize};
 
-use dirs;
-
 use shellexpand::full;
+
+use crate::paths::PATHS;
 
 
 
@@ -33,8 +33,8 @@ use shellexpand::full;
 #[derive(Error, Debug)]
 pub enum SettingsInteractionError {
     /// The config directory cannot be determined (e.g. `$HOME` not set)
-    #[error("Couldn't determine the config directory. {0}")]
-    ConfigDirNotFound(#[from] VarError),
+    #[error("Couldn't extract an env found inside the setting file (settings.json found inside config dir of OS). {0}")]
+    EnvExpansion(#[from] VarError),
 
     /// The settings.json file in *~/.config/ATA* could not be accessed
     ///
@@ -58,27 +58,6 @@ pub enum SettingsInteractionError {
 }
 
 
-
-/// The visual layout theme applied to the UI
-#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Default)]
-pub enum Style {
-    /// Default style, designed by silentShulk
-    #[default]
-    SilentShulk,
-    /// Alternative style, designed by Beyluta
-    Beyluta,
-}
-impl FromStr for Style {
-    type Err = SettingsInteractionError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "SilentShulk" => Ok(Self::SilentShulk),
-            "Beyluta" => Ok(Self::Beyluta),
-            _ => Err(SettingsInteractionError::InvalidSettingValue(s.to_string())),
-        }
-    }
-}
 
 /// The color palette applied to the UI
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Default)]
@@ -164,7 +143,7 @@ impl FromStr for ConflictResolution {
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
     /// Visual layout theme applied to the UI
-    pub style: Style,
+    pub style: String,
     /// Color palette applied to the UI
     pub palette: Palette,
     /// Order in which mods are shown in the list view
@@ -186,26 +165,24 @@ pub struct Settings {
 impl Settings {
     /// Creates a [`Settings`] instance from the settings file (*~/.config/ATA/settings.json*)
     ///
-    /// Also expands any shell variables or `~` present in `game_path`.
+    /// Also expands any shell variables or `~` present in `game_path` and `extracted_folders_location`.
     ///
     /// # Returns
     /// * [`Ok`] -> A [`Settings`] instance populated from the settings file
     /// * [`Err`] -> The type of error that occurred
     ///
     /// # Errors
-    /// * [`SettingsInteractionError::ConfigDirNotFound`] if the config directory cannot be determined
+    /// * [`SettingsInteractionError::EnvExpansion`] if a shell variable in a path cannot be resolved
     /// * [`SettingsInteractionError::SettingsFileAccessing`] if the settings file cannot be opened
     /// * [`SettingsInteractionError::JsonReading`] if the settings file cannot be parsed as JSON
     pub fn load_settings() -> Result<Self, SettingsInteractionError> {
-        let settings_file = File::open(settings_file_path()?)?;
+        let settings_file = File::open(&PATHS.settings_file)?;
         let reader = BufReader::new(settings_file);
         let mut contents: Settings = serde_json::from_reader(reader)?;
 
-        // Expand shell variables / ~ in the game path (e.g. "~/Games/NieR")
-        let path_str = contents.game_path.to_string_lossy().into_owned();
-        let expanded = full(&path_str)
-            .map_err(|_| SettingsInteractionError::ConfigDirNotFound(VarError::NotPresent))?;
-        contents.game_path = PathBuf::from(expanded.as_ref());
+        for path in [&mut contents.game_path, &mut contents.extracted_folders_location] {
+            *path = expand_path(&path.to_string_lossy())?;
+        }
 
         Ok(contents)
     }
@@ -217,11 +194,10 @@ impl Settings {
     /// * [`Err`] -> The type of error that occurred
     ///
     /// # Errors
-    /// * [`SettingsInteractionError::ConfigDirNotFound`] if the config directory cannot be determined
     /// * [`SettingsInteractionError::SettingsFileAccessing`] if the settings file cannot be created or written
     /// * [`SettingsInteractionError::JsonReading`] if the settings cannot be serialized
     pub fn update_settings_file(&self) -> Result<(), SettingsInteractionError> {
-        let settings_file = File::create(settings_file_path()?)?;
+        let settings_file = File::create(&PATHS.settings_file)?;
         serde_json::to_writer_pretty(settings_file, &self)?;
 
         Ok(())
@@ -243,18 +219,18 @@ impl Settings {
     /// # Errors
     /// * [`SettingsInteractionError::InvalidSettingName`] if `setting` does not match any known setting
     /// * [`SettingsInteractionError::InvalidSettingValue`] if `value` cannot be parsed for the target setting
-    /// * [`SettingsInteractionError::ConfigDirNotFound`] if the config directory cannot be determined
+    /// * [`SettingsInteractionError::EnvExpansion`] if a shell variable in a path value cannot be resolved
     /// * [`SettingsInteractionError::SettingsFileAccessing`] if the settings file cannot be written
     /// * [`SettingsInteractionError::JsonReading`] if the updated settings cannot be serialized
     pub fn update_setting(&mut self, setting: String, value: String) -> Result<Settings, SettingsInteractionError> {
         match setting.as_str() {
-            "style" => self.style = value.parse::<Style>()?,
+            "style" => self.style = value,
             "palette" => self.palette = value.parse::<Palette>()?,
             "sortingOrder" => self.sorting_order = value.parse::<SortingOrder>()?,
             "filesConflictResolution" => self.files_conflict_resolution = value.parse::<ConflictResolution>()?,
             "keepExtractedFolders" => self.keep_extracted_folders = value.parse::<bool>().map_err(|_| SettingsInteractionError::InvalidSettingValue(value.clone()))?,
-            "extractedFoldersLocation" => self.extracted_folders_location = value.parse::<PathBuf>().map_err(|_| SettingsInteractionError::InvalidSettingValue(value.clone()))?,
-            "gamePath" => self.game_path = value.parse::<PathBuf>().map_err(|_| SettingsInteractionError::InvalidSettingValue(value.clone()))?,
+            "extractedFoldersLocation" => self.extracted_folders_location = expand_path(&value)?,
+            "gamePath" => self.game_path = expand_path(&value)?,
             "discordRichPresence" => self.discord_rich_presence = value,
             _ => return Err(SettingsInteractionError::InvalidSettingName(setting)),
         };
@@ -267,16 +243,16 @@ impl Settings {
 
 
 
-/// Returns the canonical path to *~/.config/ATA/settings.json*
+/// Expands shell variables and `~` in a path string and returns a [`PathBuf`]
 ///
-/// Centralised so that [`Settings::load_settings`] and [`Settings::update_settings_file`]
-/// never diverge in where they look for the file.
+/// # Arguments
+/// * `value` - Raw path string, potentially containing `~` or `$VAR` references
 ///
 /// # Returns
-/// * [`Ok`] -> The resolved [`PathBuf`]
-/// * [`Err`] -> [`SettingsInteractionError::ConfigDirNotFound`] if the config directory cannot be determined
-fn settings_file_path() -> Result<PathBuf, SettingsInteractionError> {
-    let config_dir = dirs::config_local_dir()
-        .ok_or(SettingsInteractionError::ConfigDirNotFound(VarError::NotPresent))?;
-    Ok(PathBuf::from(config_dir).join("ATA").join("settings.json"))
+/// * [`Ok`] -> Expanded [`PathBuf`]
+/// * [`Err`] -> [`SettingsInteractionError::EnvExpansion`] if a variable cannot be resolved
+fn expand_path(value: &str) -> Result<PathBuf, SettingsInteractionError> {
+    let expanded = full(value)
+        .map_err(|_| SettingsInteractionError::EnvExpansion(VarError::NotPresent))?;
+    Ok(PathBuf::from(expanded.as_ref()))
 }
