@@ -26,7 +26,7 @@ mod paths;
 use data::Data;
 use installation::install_mod;
 use uninstallation::uninstall_mod;
-use mod_managing::{enable_mod, disable_mod};
+use mod_managing::{list_mods, enable_mod, disable_mod};
 use settings::Settings;
 
 use std::path::PathBuf;
@@ -96,7 +96,7 @@ fn main() {
     });
 
     if let Some(params) = args.install {
-        let installed_mod = install_mod(&PathBuf::from(&params[0]), &mut data, &settings.game_path, params[1].clone())
+        let installed_mod = install_mod(&PathBuf::from(&params[0]), params[1].clone(), &settings, &mut data,)
             .unwrap_or_else(|er| { eprintln!("Install failed: {}", er); std::process::exit(1); });
         println!("{}", json(&[installed_mod]));
     }
@@ -106,7 +106,8 @@ fn main() {
         println!("{}", json(&[uninstalled_mod]));
     }
     else if args.list_mods {
-        println!("{}", json(&data.mods));
+        let sorted_mods = list_mods(&settings.sorting_order, &data.mods);
+        println!("{}", json(&sorted_mods));
     }
     else if let Some(name) = args.enable {
         let enabled_mod = enable_mod(&mut data, name)

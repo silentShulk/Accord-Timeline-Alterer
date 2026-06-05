@@ -80,19 +80,18 @@ impl FromStr for Palette {
     }
 }
 
-
 /// The order in which installed mods are displayed in the list view
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Default)]
 pub enum SortingOrder {
     /// Group mods by their [`crate::data::ModType`] (default)
     #[default]
     ModType,
+    /// Sort mods from newest to oldest install date
+    InstallDate,
     /// Sort enabled mods before disabled ones
     EnableStatus,
     /// Sort mods alphabetically by name
     Alphabetical,
-    /// Sort mods from newest to oldest install date
-    InstallDate,
     /// Sort mods from largest to smallest total file size
     Size,
 }

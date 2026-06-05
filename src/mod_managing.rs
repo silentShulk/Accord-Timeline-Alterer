@@ -19,6 +19,8 @@ use thiserror::Error;
 
 use crate::data::{Data, Mod, DataInteractionError};
 
+use crate::settings::SortingOrder;
+
 
 
 /// Errors that could occur while enabling or disabling a mod
@@ -50,6 +52,20 @@ pub enum EnablingDisablingError {
 }
 
 
+
+pub fn list_mods(sorting_order: &SortingOrder, mods: &[Mod]) -> Vec<Mod> {
+    let mut sorted_mods: Vec<Mod> = mods.into();
+    
+    match sorting_order {
+        SortingOrder::ModType => sorted_mods.sort_unstable_by_key(|m| m.mod_type),
+        SortingOrder::InstallDate => (),
+        SortingOrder::EnableStatus => sorted_mods.sort_unstable_by_key(|m| m.enabled),
+        SortingOrder::Alphabetical => sorted_mods.sort_unstable_by_key(|m| m.name.clone()),
+        SortingOrder::Size => sorted_mods.sort_unstable_by_key(|m| m.files.len()),
+    };
+
+    sorted_mods
+}
 
 /// Moves a disabled mod's files back into the game's asset folder and marks it as enabled
 ///

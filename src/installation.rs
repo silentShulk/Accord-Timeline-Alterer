@@ -28,6 +28,8 @@ use crate::data::{Data, DataInteractionError, Mod, ModType};
 
 use chrono::Utc;
 
+use crate::settings::Settings;
+
 
 
 /// Installs a mod from a compressed archive and saves it in a config with user-decided name
@@ -57,7 +59,7 @@ use chrono::Utc;
 /// * [`InstallationError::InvalidFileName`] if one of the paths to a mod file is either root or ends in `..`
 /// * [`InstallationError::FileCopying`] if a problem occurs during file copying
 /// * [`InstallationError::DataSaving`] if the mod data couldn't be saved to the data file
-pub fn install_mod(compressed_mod_folder_path: &Path, config: &mut Data, game_path: &PathBuf, answered_name: String) -> Result<Mod, InstallationError> {
+pub fn install_mod(compressed_mod_folder_path: &Path, answered_name: String, settings: &Settings, config: &mut Data) -> Result<Mod, InstallationError> {
     if !compressed_mod_folder_path.exists() {
         return Err(InstallationError::FileNotFound(compressed_mod_folder_path.to_path_buf()));
     }
@@ -68,7 +70,7 @@ pub fn install_mod(compressed_mod_folder_path: &Path, config: &mut Data, game_pa
     let mod_data = get_mod_data(&mut mod_folder_path)?
        	.ok_or(InstallationError::ModlessFolder(mod_folder_path.clone()))?;
 
-    let mod_files = install(&mod_data.0, &mod_data.1, game_path, &answered_name)?;
+    let mod_files = install(&mod_data.0, &mod_data.1, &settings.game_path, &answered_name)?;
     let installed_mod = Mod::new(answered_name.clone(), mod_files, true, mod_data.0, Utc::now());
 
    	config.save_new_mod(&installed_mod)

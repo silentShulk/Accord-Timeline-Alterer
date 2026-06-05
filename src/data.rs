@@ -67,7 +67,7 @@ pub enum DataInteractionError {
 /// Mod types supported by ATA
 ///
 /// Mod types not currently supported are not generic, but mod-specific (like NAIOM)
-#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug, PartialOrd, Ord, Copy)]
 pub enum ModType {
     /// `DLL` mods are unique mods
     /// They contain **dll** files and other files
@@ -152,7 +152,7 @@ impl fmt::Display for ModType {
 }
 
 /// Everything ATA needs to track about an installed mod
-#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug, PartialOrd, Ord)]
 pub struct Mod {
     /// Name of the mod given by the user
     pub name: String,
