@@ -22,12 +22,14 @@ mod uninstallation;
 mod mod_managing;
 mod settings;
 mod paths;
+mod misc;
 
 use data::Data;
 use installation::install_mod;
 use uninstallation::uninstall_mod;
 use mod_managing::{list_mods, enable_mod, disable_mod};
 use settings::Settings;
+use misc::{update_discord_rich_presence, Action};
 
 use std::path::PathBuf;
 
@@ -86,14 +88,19 @@ struct Args {
 fn main() {
     let args = Args::parse();
 
-    let mut data = Data::load_data().unwrap_or_else(|err| {
-        eprintln!("Problem loading config: {}", err);
+    let mut data = Data::load_data().unwrap_or_else(|er| {
+        eprintln!("Problem loading config: {}", er);
         std::process::exit(1);
     });
-    let mut settings = Settings::load_settings().unwrap_or_else(|err| {
-        eprintln!("Problem loading settings: {}", err);
+    let mut settings = Settings::load_settings().unwrap_or_else(|er| {
+        eprintln!("Problem loading settings: {}", er);
         std::process::exit(1);
     });
+
+    update_discord_rich_presence(&settings.discord_rich_presence, Action::Installing).unwrap_or_else(|er| {
+        eprintln!("Problem using DRP: {}", er);
+        std::process::exit(1);
+    });   
 
     if let Some(params) = args.install {
         let installed_mod = install_mod(&PathBuf::from(&params[0]), params[1].clone(), &settings, &mut data,)

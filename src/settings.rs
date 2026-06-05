@@ -154,9 +154,9 @@ pub struct Settings {
     pub keep_extracted_folders: bool,
     /// Filesystem path where extracted temporary folders are stored
     pub extracted_folders_location: PathBuf,
-
     /// Absolute path to the game's installation folder
     pub game_path: PathBuf,
+    
     /// Discord Rich Presence application ID; empty string means Rich Presence is disabled
     pub discord_rich_presence: String,
 }
