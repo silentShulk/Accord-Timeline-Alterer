@@ -139,7 +139,7 @@ pub fn disable_mod(data: &mut Data, mod_name: String) -> Result<Mod, EnablingDis
 	if !mod_to_disable.1.enabled {
 	    return Err(EnablingDisablingError::AlreadyDisabled(mod_name));
 	}
-	let updated_files: Vec<PathBuf> = vec![];
+	let updated_files = toggle_files_state(mod_to_disable.1)?;
 	
     data.switch_mod_state(mod_to_disable.0, updated_files)?;
     
