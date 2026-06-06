@@ -74,7 +74,6 @@ pub fn launch_automata() -> Result<ExitStatus, std::io::Error> {
 
     #[cfg(target_os = "linux")]
     {
-        // On Linux/Hyprland, use xdg-open to handle the URI
         let status = Command::new("xdg-open")
             .arg(&steam_url)
             .status();
@@ -84,13 +83,10 @@ pub fn launch_automata() -> Result<ExitStatus, std::io::Error> {
 
     #[cfg(target_os = "windows")]
     {
-        // On Windows, pass it to the command shell start handler
         let status = Command::new("cmd")
             .args(["/C", "start", &steam_url])
             .status();
 
-        if status.is_err() {
-            eprintln!("Failed to launch via cmd start.");
-        }
+        status
     }
 }
