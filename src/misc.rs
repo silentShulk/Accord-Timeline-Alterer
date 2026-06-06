@@ -68,27 +68,23 @@ pub fn update_discord_rich_presence(drp: &String, last_action: Action) -> Result
     Ok(())
 }
 
-pub fn launch_automata() -> Result<ExitStatus, std::io::Error> {
-    let app_id = "524220"; 
+pub fn launch_automata() -> Result<(), std::io::Error> {
+    let app_id = "524220";
     let steam_url = format!("steam://run/{}", app_id);
 
     #[cfg(target_os = "linux")]
     {
-        let status = Command::new("xdg-open")
+        Command::new("xdg-open")
             .arg(&steam_url)
-            .arg("&")
-            .arg("disown")
-            .status();
-
-        status
+            .spawn()?;
     }
 
     #[cfg(target_os = "windows")]
     {
-        let status = Command::new("cmd")
+        Command::new("cmd")
             .args(["/C", "start", &steam_url])
-            .status();
-
-        status
+            .spawn()?;
     }
+
+    Ok(())
 }

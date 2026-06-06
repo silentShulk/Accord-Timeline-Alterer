@@ -104,7 +104,6 @@ fn main() {
 
     update_discord_rich_presence(&settings.discord_rich_presence, action).unwrap_or_else(|er| {
         eprintln!("Problem using DRP: {}", er);
-        std::process::exit(1);
     });   
 
     if let Some(params) = args.install {
@@ -146,11 +145,9 @@ fn main() {
         println!("{}", json(&settings))
     }
     else if args.automata {
-        let automata_status = launch_automata();
-        match automata_status {
-            Ok(_) => println!("Game starting..."),
-            Err(er) => eprintln!("Game failed to launch. {}", er)
-        }
+        launch_automata()
+            .unwrap_or_else(|er| eprintln!("Game failed to launch. {}", er));
+        println!("Game starting...");
         action = Action::Playing;
     }
     else {
@@ -160,7 +157,6 @@ fn main() {
 
     update_discord_rich_presence(&settings.discord_rich_presence, action).unwrap_or_else(|er| {
         eprintln!("Problem using DRP: {}", er);
-        std::process::exit(1);
     });   
 }
 
