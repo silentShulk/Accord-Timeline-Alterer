@@ -9,10 +9,10 @@ $modPaths = @(
     "$HOME/.local/share/Steam/steamapps/common/NieRAutomata/data/wax"
 )
 
-foreach ($path in $modPaths) {
-    if (Test-Path $path) {
-        # This will only run if the path exists. Else error gets thrown polluting the output
-        # If it fails due to permissions, it WILL throw a visible error.
+foreach ($path in $modPaths)
+{
+    if (Test-Path $path)
+    {
         rm -r -f $path
     }
 }
@@ -20,18 +20,17 @@ foreach ($path in $modPaths) {
 
 
 # Create folders strictly necessary for development testing
-# With these development testing is possible even if the game isn't installed
 mkdir "$HOME/.local/share/Steam/steamapps/common/NieRAutomata/data" -Force | Out-Null
 mkdir "$HOME/.local/share/Steam/steamapps/common/NieRAutomata/wax/mods" -Force | Out-Null
 
 
 
 # Directories used by ATA
-$exe = "$HOME/.local/bin/ATA"
-$data = "$HOME/.local/share/ATA"
-$settings = "$HOME/.config/ATA"
-$uis = "$HOME/.local/share/UIs"
-$apps = "$HOME/.local/share/Apps"
+$exe      = "$env:LOCALAPPDATA\Programs\ATA"
+$data     = "$env:LOCALAPPDATA\ATA"
+$settings = "$env:APPDATA\ATA"
+$uis      = "$env:LOCALAPPDATA\ATA\UIs"
+$apps     = "$env:LOCALAPPDATA\ATA\Apps"
 
 mkdir $exe -Force | Out-Null
 mkdir $data -Force | Out-Null
@@ -44,26 +43,28 @@ mkdir $apps -Force | Out-Null
 # Insert default content inside data and settings
 
 # data.json
-@'
+[System.IO.File]::WriteAllText("$data\data.json", @'
 {
     "mods": []
 }
-'@ > "$data\data.json"
-
+'@, [System.Text.UTF8Encoding]::new($false))
+ 
 # settings.json
-@"
+# Pre-escape the $HOME path so it retains double backslashes in the JSON
+$escapedHome = $HOME -replace '\\', '\\\\'
+ 
+[System.IO.File]::WriteAllText("$settings\settings.json", @"
 {
   "style": "SilentShulk",
   "palette": "Automata",
   "sortingOrder": "ModType",
   "filesConflictResolution": "Ask",
   "keepExtractedFolders": true,
-  "extractedFoldersLocation": "$HOME\\Downloads",
-  "gamePath": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\NieRAutomata",
+  "extractedFoldersLocation": "${escapedHome}\\\\Downloads",
+  "gamePath": "C:\\\\Program Files (x86)\\\\Steam\\\\steamapps\\\\common\\\\NieRAutomata",
   "discordRichPresence": "Altering NieRAutomata's timelines"
 }
-"@ > "$settings\settings.json"
-
+"@, [System.Text.UTF8Encoding]::new($false))
 
 
 Write-Host "ATA dev environment ready." -ForegroundColor Green
