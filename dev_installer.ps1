@@ -1,31 +1,59 @@
 # ATA dev installer — Windows
 
-$dataDir     = [Environment]::GetFolderPath("ApplicationData")       # %APPDATA%  (Roaming)
-$localData   = [Environment]::GetFolderPath("LocalApplicationData")  # %LOCALAPPDATA%
+# Remove folders for mod files (will be recreated by ATA if necessary)
+# This doesn't affect a working installation of the game
+rm -r -f "$HOME/.local/share/Steam/steamapps/common/NieRAutomata/data/pl"
+rm -r -f "$HOME/.local/share/Steam/steamapps/common/NieRAutomata/data/wp"
+rm -r -f "$HOME/.local/share/Steam/steamapps/common/NieRAutomata/data/bg"
+rm -r -f "$HOME/.local/share/Steam/steamapps/common/NieRAutomata/data/wax"
 
-# ATA dirs
-New-Item -ItemType Directory -Force -Path "$localData\ATA\UIs"   | Out-Null
-New-Item -ItemType Directory -Force -Path "$localData\ATA\Apps"  | Out-Null
-New-Item -ItemType Directory -Force -Path "$localData\Programs\ATA" | Out-Null
-New-Item -ItemType Directory -Force -Path "$dataDir\ATA"         | Out-Null
-New-Item -ItemType Directory -Force -Path "$localData\ATA"       | Out-Null
 
-# data.json  (WriteAllText = UTF-8 no BOM, serde_json-safe)
-[System.IO.File]::WriteAllText("$dataDir\ATA\data.json", "{`n    `"mods`": []`n}`n")
+
+# Create folders strictly necessary for development testing
+# With these development testing is possible even if the game isn't installed
+mkdir "$HOME/.local/share/Steam/steamapps/common/NieRAutomata/data" -Force
+mkdir "$HOME/.local/share/Steam/steamapps/common/NieRAutomata/wax/mods" -Force
+
+
+
+# Directories used by ATA
+$exe = "$HOME/.local/bin/ATA"
+$data = "$HOME/.local/share/ATA"
+$settings = "$HOME/.config/ATA"
+$uis = "$HOME/.local/share/UIs"
+$apps = "$HOME/.local/share/Apps"
+
+mkdir $exe -Force
+mkdir $data -Force
+mkdir $settings -Force
+mkdir $uis -Force
+mkdir $apps -Force
+
+
+
+# Insert default content inside data and settings
+
+# data.json
+@'
+{
+    "mods": []
+}
+'@ > "$data\data.json"
 
 # settings.json
-$settings = @'
+@"
 {
   "style": "SilentShulk",
   "palette": "Automata",
   "sortingOrder": "ModType",
   "filesConflictResolution": "Ask",
   "keepExtractedFolders": true,
-  "extractedFoldersLocation": "",
-  "gamePath": "",
+  "extractedFoldersLocation": "$HOME\\Downloads",
+  "gamePath": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\NieRAutomata",
   "discordRichPresence": "Altering NieRAutomata's timelines"
 }
-'@
-[System.IO.File]::WriteAllText("$localData\ATA\settings.json", $settings)
+"@ > "$settings\settings.json"
 
-Write-Host "ATA dev environment ready."
+
+
+Write-Host "ATA dev environment ready." -ForegroundColor Green
