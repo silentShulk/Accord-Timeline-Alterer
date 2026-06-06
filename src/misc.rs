@@ -1,6 +1,6 @@
 use std::sync::LazyLock;
 
-use std::process::{Command, ExitStatus};
+use std::process::Command;
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
