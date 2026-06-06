@@ -29,7 +29,7 @@ use installation::install_mod;
 use uninstallation::uninstall_mod;
 use mod_managing::{list_mods, enable_mod, disable_mod};
 use settings::Settings;
-use misc::{update_discord_rich_presence, Action, launch_automata};
+use misc::{/*update_discord_rich_presence, Action,*/ launch_automata};
 
 use std::path::PathBuf;
 
@@ -91,7 +91,7 @@ struct Args {
 /// subcommand combination is given, or if the subcommand itself returns an error.
 fn main() {
     let args = Args::parse();
-    let mut action = Action::JustOpened;
+    // let mut action = Action::JustOpened;
 
     let mut data = Data::load_data().unwrap_or_else(|er| {
         eprintln!("Problem loading data: {}", er);
@@ -102,44 +102,44 @@ fn main() {
         std::process::exit(1);
     });
 
-    update_discord_rich_presence(&settings.discord_rich_presence, action).unwrap_or_else(|er| {
-        eprintln!("Problem using DRP: {}", er);
-    });   
+    // update_discord_rich_presence(&settings.discord_rich_presence, action).unwrap_or_else(|er| {
+    //     eprintln!("Problem using DRP: {}", er);
+    // });   
 
     if let Some(params) = args.install {
         let installed_mod = install_mod(&PathBuf::from(&params[0]), params[1].clone(), &settings, &mut data,)
             .unwrap_or_else(|er| { eprintln!("Install failed: {}", er); std::process::exit(1); });
         println!("{}", json(&[installed_mod]));
-        action = Action::Installing;
+        // action = Action::Installing;
     }
     else if let Some(name) = args.uninstall {
         let uninstalled_mod = uninstall_mod(&mut data, name)
             .unwrap_or_else(|er| { eprintln!("Uninstall failed: {}", er); std::process::exit(1); });
         println!("{}", json(&[uninstalled_mod]));
-        action = Action::Uninstalling
+        // action = Action::Uninstalling
     }
     else if args.list_mods {
         let sorted_mods = list_mods(&settings.sorting_order, &data.mods);
         println!("{}", json(&sorted_mods));
-        action = Action::ListingMods;
+        // action = Action::ListingMods;
     }
     else if let Some(name) = args.enable {
         let enabled_mod = enable_mod(&mut data, name)
             .unwrap_or_else(|er| { eprintln!("Enable failed: {}", er); std::process::exit(1); });
         println!("{}", json(&[enabled_mod]));
-        action = Action::Enabling;
+        // action = Action::Enabling;
     }
     else if let Some(name) = args.disable {
         let disabled_mod = disable_mod(&mut data, name)
             .unwrap_or_else(|er| { eprintln!("Disable failed: {}", er); std::process::exit(1); });
         println!("{}", json(&[disabled_mod]));
-        action = Action::Disabling;
+        // action = Action::Disabling;
     }
     else if let Some(params) = args.settings {
         let changed_setting = settings.update_setting(params[0].clone(), params[1].clone())
             .unwrap_or_else(|er| { eprintln!("Settings Change failed: {}", er); std::process::exit(1); });
         println!("{}", json(&[changed_setting]));
-        action = Action::ChangingSettings;
+        // action = Action::ChangingSettings;
     }
     else if args.list_settings {
         println!("{}", json(&settings))
@@ -148,16 +148,16 @@ fn main() {
         launch_automata()
             .unwrap_or_else(|er| eprintln!("Game failed to launch. {}", er));
         println!("Game starting...");
-        action = Action::Playing;
+        // action = Action::Playing;
     }
     else {
         eprintln!("No command given");
         std::process::exit(1);
     }
 
-    update_discord_rich_presence(&settings.discord_rich_presence, action).unwrap_or_else(|er| {
-        eprintln!("Problem using DRP: {}", er);
-    });   
+    // update_discord_rich_presence(&settings.discord_rich_presence, action).unwrap_or_else(|er| {
+    //     eprintln!("Problem using DRP: {}", er);
+    // });   
 }
 
 
