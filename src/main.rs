@@ -29,6 +29,7 @@ use installation::install_mod;
 use uninstallation::uninstall_mod;
 use mod_managing::{list_mods, enable_mod, disable_mod};
 use settings::Settings;
+use paths::PATHS;
 use misc::{/*update_discord_rich_presence, Action,*/ launch_automata};
 
 use std::path::PathBuf;
@@ -81,6 +82,10 @@ struct Args {
     #[arg(long="automata", short='a',
         help="Start NieR:Automata")]
     automata: bool,
+
+    #[arg(long="files", short='f',
+        help="List all of ATA's files")]
+    files: bool,
 }
 
 
@@ -149,6 +154,14 @@ fn main() {
             .unwrap_or_else(|er| eprintln!("Game failed to launch. {}", er));
         println!("Game starting...");
         // action = Action::Playing;
+    }
+    else if args.files {
+        println!("{:?}
+{:?}
+{:?}
+{:?}
+{:?}",
+        PATHS.executable, PATHS.data_file, PATHS.settings_file, PATHS.uis_dir, PATHS.apps_dir)
     }
     else {
         eprintln!("No command given");
