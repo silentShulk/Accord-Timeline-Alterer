@@ -10,15 +10,11 @@ New-Item -ItemType Directory -Force -Path "$localData\Programs\ATA" | Out-Null
 New-Item -ItemType Directory -Force -Path "$dataDir\ATA"         | Out-Null
 New-Item -ItemType Directory -Force -Path "$localData\ATA"       | Out-Null
 
-# data.json
-@'
-{
-    "mods": []
-}
-'@ | Set-Content -Path "$dataDir\ATA\data.json" -Encoding UTF8
+# data.json  (WriteAllText = UTF-8 no BOM, serde_json-safe)
+[System.IO.File]::WriteAllText("$dataDir\ATA\data.json", "{`n    `"mods`": []`n}`n")
 
 # settings.json
-@'
+$settings = @'
 {
   "style": "SilentShulk",
   "palette": "Automata",
@@ -29,6 +25,7 @@ New-Item -ItemType Directory -Force -Path "$localData\ATA"       | Out-Null
   "gamePath": "",
   "discordRichPresence": "Altering NieRAutomata's timelines"
 }
-'@ | Set-Content -Path "$localData\ATA\settings.json" -Encoding UTF8
+'@
+[System.IO.File]::WriteAllText("$localData\ATA\settings.json", $settings)
 
 Write-Host "ATA dev environment ready."
