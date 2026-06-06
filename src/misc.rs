@@ -76,6 +76,8 @@ pub fn launch_automata() -> Result<ExitStatus, std::io::Error> {
     {
         let status = Command::new("xdg-open")
             .arg(&steam_url)
+            .arg("&")
+            .arg("disown")
             .status();
 
         status
