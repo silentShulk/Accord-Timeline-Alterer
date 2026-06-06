@@ -29,7 +29,7 @@ use installation::install_mod;
 use uninstallation::uninstall_mod;
 use mod_managing::{list_mods, enable_mod, disable_mod};
 use settings::Settings;
-use misc::{update_discord_rich_presence, Action};
+use misc::{update_discord_rich_presence, Action, launch_automata};
 
 use std::path::PathBuf;
 
@@ -42,7 +42,7 @@ use clap::Parser;
 /// Exactly one of the flags must be provided per invocation.
 /// Clap validates argument counts and generates `--help` output automatically.
 #[derive(Parser)]
-#[command(name = "ATA", version = "0.01", about = "Accord's Timeline Alterer, the NieR Automata mod manager for Linux")]
+#[command(name = "ATA", version = "0.01", about = "Accord's Timeline Alterer, the cross-platform NieR Automata mod manager")]
 struct Args {
     /// Install a mod from a compressed archive at `PATH` and register it under `NAME`
     #[arg(long = "install", short='i', num_args = 2, value_names = ["PATH", "NAME"],
@@ -55,7 +55,7 @@ struct Args {
     uninstall: Option<String>,
 
     /// Print all installed mods as a JSON array and exit
-    #[arg(long="mods", short='m',
+    #[arg(long="list-mods", short='m',
         help="List all installed mods")]
     list_mods: bool,
 
@@ -76,7 +76,11 @@ struct Args {
 
     #[arg(long="list-settings", short='l',
         help="List all settings and their values")]
-    list_settings: bool
+    list_settings: bool,
+
+    #[arg(long="automata", short='a',
+        help="Start NieR:Automata")]
+    automata: bool,
 }
 
 
@@ -87,6 +91,7 @@ struct Args {
 /// subcommand combination is given, or if the subcommand itself returns an error.
 fn main() {
     let args = Args::parse();
+    let mut action = Action::JustOpened;
 
     let mut data = Data::load_data().unwrap_or_else(|er| {
         eprintln!("Problem loading config: {}", er);
@@ -97,7 +102,7 @@ fn main() {
         std::process::exit(1);
     });
 
-    update_discord_rich_presence(&settings.discord_rich_presence, Action::Installing).unwrap_or_else(|er| {
+    update_discord_rich_presence(&settings.discord_rich_presence, action).unwrap_or_else(|er| {
         eprintln!("Problem using DRP: {}", er);
         std::process::exit(1);
     });   
@@ -106,38 +111,57 @@ fn main() {
         let installed_mod = install_mod(&PathBuf::from(&params[0]), params[1].clone(), &settings, &mut data,)
             .unwrap_or_else(|er| { eprintln!("Install failed: {}", er); std::process::exit(1); });
         println!("{}", json(&[installed_mod]));
+        action = Action::Installing;
     }
     else if let Some(name) = args.uninstall {
         let uninstalled_mod = uninstall_mod(&mut data, name)
             .unwrap_or_else(|er| { eprintln!("Uninstall failed: {}", er); std::process::exit(1); });
         println!("{}", json(&[uninstalled_mod]));
+        action = Action::Uninstalling
     }
     else if args.list_mods {
         let sorted_mods = list_mods(&settings.sorting_order, &data.mods);
         println!("{}", json(&sorted_mods));
+        action = Action::ListingMods;
     }
     else if let Some(name) = args.enable {
         let enabled_mod = enable_mod(&mut data, name)
             .unwrap_or_else(|er| { eprintln!("Enable failed: {}", er); std::process::exit(1); });
         println!("{}", json(&[enabled_mod]));
+        action = Action::Enabling;
     }
     else if let Some(name) = args.disable {
         let disabled_mod = disable_mod(&mut data, name)
             .unwrap_or_else(|er| { eprintln!("Disable failed: {}", er); std::process::exit(1); });
         println!("{}", json(&[disabled_mod]));
+        action = Action::Disabling;
     }
     else if let Some(params) = args.settings {
         let changed_setting = settings.update_setting(params[0].clone(), params[1].clone())
             .unwrap_or_else(|er| { eprintln!("Settings Change failed: {}", er); std::process::exit(1); });
         println!("{}", json(&[changed_setting]));
+        action = Action::ChangingSettings;
     }
     else if args.list_settings {
         println!("{}", json(&settings))
+    }
+    else if args.automata {
+        let automata_status = launch_automata();
+        match automata_status {
+            Ok(_) => println!("Game starting..."),
+            Err(er) => eprintln!("Game failed to launch. {}", er)
+        }
+        action = Action::Playing;
     }
     else {
         eprintln!("No command given");
         std::process::exit(1);
     }
+
+    update_discord_rich_presence(&settings.discord_rich_presence, action).unwrap_or_else(|er| {
+        eprintln!("Problem using DRP: {}", er);
+        std::process::exit(1);
+    });   
 }
 
 

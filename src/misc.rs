@@ -1,5 +1,7 @@
 use std::sync::LazyLock;
 
+use std::process::{Command, ExitStatus};
+
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use discord_rich_presence::{DiscordIpc, DiscordIpcClient, activity::Activity, activity::Timestamps};
@@ -18,7 +20,9 @@ pub enum DiscordError {
     ActivitySetting(discord_rich_presence::error::Error)
 }
 
+#[derive(Debug, Copy, Clone)]
 pub enum Action {
+    JustOpened,
     Installing,
     Uninstalling,
     Enabling,
@@ -30,7 +34,8 @@ pub enum Action {
 impl AsRef<str> for Action {
     fn as_ref(&self) -> &str {
         match self {
-            Action::Installing => "Altering Timelines...",
+            Action::JustOpened => "Woke up silly...",
+            Action::Installing => "Mixing universes together",
             Action::Uninstalling => "Unaltering Timelines",
             Action::Enabling => "Bringing back the chaos",
             Action::Disabling => "Taking a step back from the chaos",
@@ -47,9 +52,10 @@ static START_TIME: LazyLock<i64> = LazyLock::new(|| {
         .unwrap()
         .as_secs() as i64
 });
+const ATA_ID: &str = "1512579862676639864";
 
 pub fn update_discord_rich_presence(drp: &String, last_action: Action) -> Result<(), DiscordError> {
-    let mut client = DiscordIpcClient::new("1512579862676639864");
+    let mut client = DiscordIpcClient::new(ATA_ID);
     client.connect().map_err(|er| DiscordError::ClientConnection(er))?;
 
     let payload = Activity::new()
@@ -60,4 +66,31 @@ pub fn update_discord_rich_presence(drp: &String, last_action: Action) -> Result
     client.set_activity(payload).map_err(|er| DiscordError::ActivitySetting(er))?;
     
     Ok(())
+}
+
+pub fn launch_automata() -> Result<ExitStatus, std::io::Error> {
+    let app_id = "524220"; 
+    let steam_url = format!("steam://run/{}", app_id);
+
+    #[cfg(target_os = "linux")]
+    {
+        // On Linux/Hyprland, use xdg-open to handle the URI
+        let status = Command::new("xdg-open")
+            .arg(&steam_url)
+            .status();
+
+        status
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        // On Windows, pass it to the command shell start handler
+        let status = Command::new("cmd")
+            .args(["/C", "start", &steam_url])
+            .status();
+
+        if status.is_err() {
+            eprintln!("Failed to launch via cmd start.");
+        }
+    }
 }

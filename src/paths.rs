@@ -31,7 +31,7 @@ pub static PATHS: LazyLock<Paths> = LazyLock::new(|| {
             .join("Programs").join("ATA").join("ATA.exe"),
         data_file: data_dir().unwrap()
             .join("ATA").join("data.json"),
-        settings: config_local_dir().unwrap()
+        settings_file: config_local_dir().unwrap()
             .join("ATA").join("settings.json"),
         uis_dir: data_local_dir().unwrap()
             .join("ATA").join("UIs"),
