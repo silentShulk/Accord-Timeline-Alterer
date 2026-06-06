@@ -33,19 +33,19 @@ use crate::paths::PATHS;
 #[derive(Error, Debug)]
 pub enum SettingsInteractionError {
     /// The config directory cannot be determined (e.g. `$HOME` not set)
-    #[error("Couldn't extract an env found inside the setting file (settings.json found inside config dir of OS). {0}")]
+    #[error("Couldn't extract an env found inside the setting file ({path:?}). {0}", path=PATHS.settings_file)]
     EnvExpansion(#[from] VarError),
 
     /// The settings.json file in *~/.config/ATA* could not be accessed
     ///
     /// It could either be absent, have had its name changed, or have gotten corrupted
-    #[error("Couldn't access settings file (settings.json found inside config dir of OS). {0}")]
+    #[error("Couldn't access settings file ({path:?}). {0}", path=PATHS.settings_file)]
     SettingsFileAccessing(#[from] std::io::Error),
 
     /// The contents of settings.json were impossible to read
     ///
     /// This could be because the file is corrupted or contains invalid JSON
-    #[error("Unable to read contents of settings file (settings.json found inside config dir of OS). {0}")]
+    #[error("Unable to read contents of settings file ({path:?}). {0}", path=PATHS.settings_file)]
     JsonReading(#[from] serde_json::Error),
 
     /// The provided setting name does not correspond to any known setting

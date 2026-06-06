@@ -94,7 +94,7 @@ fn main() {
     let mut action = Action::JustOpened;
 
     let mut data = Data::load_data().unwrap_or_else(|er| {
-        eprintln!("Problem loading config: {}", er);
+        eprintln!("Problem loading data: {}", er);
         std::process::exit(1);
     });
     let mut settings = Settings::load_settings().unwrap_or_else(|er| {

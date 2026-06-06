@@ -48,13 +48,13 @@ pub enum DataInteractionError {
     /// The data.json file in *~/.local/share/ATA* could not be accessed
     ///
     /// It could either be absent, have had its name changed, or have gotten corrupted
-    #[error("Couldn't access data file (data.json found inside data dir of OS). {0}")]
+    #[error("Couldn't access data file ({path:?}). {0}", path=&PATHS.data_file)]
     DataFileAccessing(#[from] std::io::Error),
 
     /// The contents of data.json were impossible to read
     ///
     /// This could be because the file is corrupted or contains invalid JSON
-    #[error("Unable to read contents of data file (data.json found inside data dir of OS). {0}")]
+    #[error("Unable to read contents of data file ({path:?}). {0}", path=&PATHS.data_file)]
     JsonReading(#[from] serde_json::Error),
 
     /// A mod with the given name is already present in the data file
