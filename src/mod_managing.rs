@@ -10,6 +10,10 @@
 //! * **disabling**: Moving mod files out of the game's asset folder into `.disabled/`
 //!
 //! Main functions: [`enable_mod`], [`disable_mod`]
+//! 
+use crate::data::{Data, Mod, DataInteractionError};
+
+use crate::settings::SortingOrder;
 
 use std::fs::{create_dir_all, rename};
 
@@ -17,61 +21,7 @@ use std::path::PathBuf;
 
 use thiserror::Error;
 
-use crate::data::{Data, Mod, DataInteractionError};
 
-use crate::settings::SortingOrder;
-
-
-
-/// Errors that could occur while enabling or disabling a mod
-#[derive(Error, Debug)]
-pub enum EnablingDisablingError {
-    /// No mod with the given name was found in the data file
-    #[error("No installed mod has the name {0}")]
-    ModNotFound(String),
-
-    /// A stored file path ends with `..`, making it impossible to extract a filename
-    #[error("{0} ends with ..")]
-    DotDotPath(PathBuf),
-
-    /// A stored file path has no parent component (is root or empty)
-    #[error("{0} is either root or an empty path")]
-    ParentlessOrEmptyPath(PathBuf),
-
-    /// The `.disabled/` directory could not be created
-    #[error("Couldn't create {0}. {1}")]
-    FolderCreation(PathBuf, std::io::Error),
-
-    /// A file could not be moved between the enabled and disabled locations
-    #[error("Couldn't move file from downloaded folder to game folder. {0}")]
-    Renaming(#[from] std::io::Error),
-
-    /// The data file could not be updated after moving the files
-    #[error("Couldn't update data file (data.json found inside data dir of OS). {0}")]
-    DataSaving(#[from] DataInteractionError),
-
-    #[error("\"{0}\" is already enabled")]
-    AlreadyEnabled(String),
-
-    #[error("\"{0}\" is already disabled")]
-    AlreadyDisabled(String)
-}
-
-
-
-pub fn list_mods(sorting_order: &SortingOrder, mods: &[Mod]) -> Vec<Mod> {
-    let mut sorted_mods: Vec<Mod> = mods.into();
-    
-    match sorting_order {
-        SortingOrder::ModType => sorted_mods.sort_unstable_by_key(|m| m.mod_type),
-        SortingOrder::InstallDate => (),
-        SortingOrder::EnableStatus => sorted_mods.sort_unstable_by_key(|m| m.enabled),
-        SortingOrder::Alphabetical => sorted_mods.sort_unstable_by_key(|m| m.name.clone()),
-        SortingOrder::Size => sorted_mods.sort_unstable_by_key(|m| m.files.len()),
-    };
-
-    sorted_mods
-}
 
 /// Moves a disabled mod's files back into the game's asset folder and marks it as enabled
 ///
@@ -148,6 +98,58 @@ pub fn disable_mod(data: &mut Data, mod_name: String) -> Result<Mod, EnablingDis
 
 
 
+/// Errors that could occur while enabling or disabling a mod
+#[derive(Error, Debug)]
+pub enum EnablingDisablingError {
+    /// No mod with the given name was found in the data file
+    #[error("No installed mod has the name {0}")]
+    ModNotFound(String),
+
+    /// A stored file path ends with `..`, making it impossible to extract a filename
+    #[error("{0} ends with ..")]
+    DotDotPath(PathBuf),
+
+    /// A stored file path has no parent component (is root or empty)
+    #[error("{0} is either root or an empty path")]
+    ParentlessOrEmptyPath(PathBuf),
+
+    /// The `.disabled/` directory could not be created
+    #[error("Couldn't create {0}. {1}")]
+    FolderCreation(PathBuf, std::io::Error),
+
+    /// A file could not be moved between the enabled and disabled locations
+    #[error("Couldn't move file from downloaded folder to game folder. {0}")]
+    Renaming(#[from] std::io::Error),
+
+    /// The data file could not be updated after moving the files
+    #[error("Couldn't update data file (data.json found inside data dir of OS). {0}")]
+    DataSaving(#[from] DataInteractionError),
+
+    #[error("\"{0}\" is already enabled")]
+    AlreadyEnabled(String),
+
+    #[error("\"{0}\" is already disabled")]
+    AlreadyDisabled(String)
+}
+
+
+
+pub fn list_mods(sorting_order: &SortingOrder, mods: &[Mod]) -> Vec<Mod> {
+    let mut sorted_mods: Vec<Mod> = mods.into();
+    
+    match sorting_order {
+        SortingOrder::ModType => sorted_mods.sort_unstable_by_key(|m| m.mod_type),
+        SortingOrder::InstallDate => (),
+        SortingOrder::EnableStatus => sorted_mods.sort_unstable_by_key(|m| m.enabled),
+        SortingOrder::Alphabetical => sorted_mods.sort_unstable_by_key(|m| m.name.clone()),
+        SortingOrder::Size => sorted_mods.sort_unstable_by_key(|m| m.files.len()),
+    };
+
+    sorted_mods
+}
+
+
+
 fn toggle_files_state(mod_to_enable: Mod) -> Result<Vec<PathBuf>, EnablingDisablingError> {
     if mod_to_enable.enabled {
         return disable_files(mod_to_enable.files);
@@ -160,14 +162,14 @@ fn enable_files(files_to_enable: Vec<PathBuf>) -> Result<Vec<PathBuf>, EnablingD
     let mut updated_files:Vec<PathBuf> = vec![];
     
     for file in files_to_enable {
-	    let Some(filename) = file.file_name() else {
- 		    return Err(EnablingDisablingError::DotDotPath(file.to_path_buf()))
- 	    };
- 	    let Some(parent) = file.parent() else {
+   	    let Some(filename) = file.file_name() else {
+  		    return Err(EnablingDisablingError::DotDotPath(file.to_path_buf()))
+   	    };
+   	    let Some(parent) = file.parent() else {
   		    return Err(EnablingDisablingError::ParentlessOrEmptyPath(file.to_path_buf()))
-  	    };
-  	    let Some(enabled_folder) = parent.parent() else {
-   		    return Err(EnablingDisablingError::ParentlessOrEmptyPath(parent.to_path_buf()))
+   	    };
+   	    let Some(enabled_folder) = parent.parent() else {
+  		    return Err(EnablingDisablingError::ParentlessOrEmptyPath(parent.to_path_buf()))
    	    };
     
         let new_path = enabled_folder.join(filename);

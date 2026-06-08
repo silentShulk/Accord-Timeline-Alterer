@@ -7,13 +7,13 @@
 //!
 //! Main function: [`uninstall_mod`]
 
+use crate::data::{Data, Mod, DataInteractionError};
+
 use std::fs::remove_file;
 
 use std::path::PathBuf;
 
 use thiserror::Error;
-
-use crate::data::{Data, Mod, DataInteractionError};
 
 
 

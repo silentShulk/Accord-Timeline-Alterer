@@ -4,10 +4,9 @@ use std::process::Command;
 
 // use std::time::{SystemTime, UNIX_EPOCH};
 
-// use discord_rich_presence::{DiscordIpc, DiscordIpcClient, activity::Activity, activity::Timestamps};
-
 // use thiserror::Error;
 
+// use discord_rich_presence::{DiscordIpc, DiscordIpcClient, activity::Activity, activity::Timestamps};
 
 
 

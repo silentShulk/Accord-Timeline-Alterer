@@ -11,6 +11,8 @@
 //!
 //! Main type: [`Settings`]
 
+use crate::paths::PATHS;
+
 use std::{fs::File, str::FromStr};
 
 use std::env::VarError;
@@ -25,7 +27,109 @@ use serde::{Serialize, Deserialize};
 
 use shellexpand::full;
 
-use crate::paths::PATHS;
+
+
+/// All user-configurable settings for ATA
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct Settings {
+    /// Visual layout theme applied to the UI
+    pub style: String,
+    /// Color palette applied to the UI
+    pub palette: Palette,
+    /// Order in which mods are shown in the list view
+    pub sorting_order: SortingOrder,
+
+    /// How to handle file conflicts when installing a mod
+    pub files_conflict_resolution: ConflictResolution,
+    /// Whether to keep the extracted temporary folder after a successful installation
+    pub keep_extracted_folders: bool,
+    /// Filesystem path where extracted temporary folders are stored
+    pub extracted_folders_location: PathBuf,
+    /// Absolute path to the game's installation folder
+    pub game_path: PathBuf,
+    
+    /// Discord Rich Presence application ID; empty string means Rich Presence is disabled
+    pub discord_rich_presence: String,
+}
+impl Settings {
+    /// Creates a [`Settings`] instance from the settings file (*~/.config/ATA/settings.json*)
+    ///
+    /// Also expands any shell variables or `~` present in `game_path` and `extracted_folders_location`.
+    ///
+    /// # Returns
+    /// * [`Ok`] -> A [`Settings`] instance populated from the settings file
+    /// * [`Err`] -> The type of error that occurred
+    ///
+    /// # Errors
+    /// * [`SettingsInteractionError::EnvExpansion`] if a shell variable in a path cannot be resolved
+    /// * [`SettingsInteractionError::SettingsFileAccessing`] if the settings file cannot be opened
+    /// * [`SettingsInteractionError::JsonReading`] if the settings file cannot be parsed as JSON
+    pub fn load_settings() -> Result<Self, SettingsInteractionError> {
+        let settings_file = File::open(&PATHS.settings_file)?;
+        let reader = BufReader::new(settings_file);
+        let mut contents: Settings = serde_json::from_reader(reader)?;
+
+        for path in [&mut contents.game_path, &mut contents.extracted_folders_location] {
+            *path = expand_path(&path.to_string_lossy())?;
+        }
+
+        Ok(contents)
+    }
+
+    /// Parses `value`, applies it to the setting identified by `setting`, and persists the change
+    ///
+    /// Setting names use camelCase and mirror the JSON keys in settings.json
+    /// (e.g. `"sortingOrder"`, `"gamePath"`).
+    ///
+    /// # Arguments
+    /// * `setting` - camelCase name of the setting to update
+    /// * `value` - String representation of the new value
+    ///
+    /// # Returns
+    /// * [`Ok`] -> A clone of the updated [`Settings`] struct
+    /// * [`Err`] -> The type of error that occurred
+    ///
+    /// # Errors
+    /// * [`SettingsInteractionError::InvalidSettingName`] if `setting` does not match any known setting
+    /// * [`SettingsInteractionError::InvalidSettingValue`] if `value` cannot be parsed for the target setting
+    /// * [`SettingsInteractionError::EnvExpansion`] if a shell variable in a path value cannot be resolved
+    /// * [`SettingsInteractionError::SettingsFileAccessing`] if the settings file cannot be written
+    /// * [`SettingsInteractionError::JsonReading`] if the updated settings cannot be serialized
+    pub fn update_setting(&mut self, setting: String, value: String) -> Result<Settings, SettingsInteractionError> {
+        match setting.as_str() {
+            "style" => self.style = value,
+            "palette" => self.palette = value.parse::<Palette>()?,
+            "sortingOrder" => self.sorting_order = value.parse::<SortingOrder>()?,
+            "filesConflictResolution" => self.files_conflict_resolution = value.parse::<ConflictResolution>()?,
+            "keepExtractedFolders" => self.keep_extracted_folders = value.parse::<bool>().map_err(|_| SettingsInteractionError::InvalidSettingValue(value.clone()))?,
+            "extractedFoldersLocation" => self.extracted_folders_location = expand_path(&value)?,
+            "gamePath" => self.game_path = expand_path(&value)?,
+            "discordRichPresence" => self.discord_rich_presence = value,
+            _ => return Err(SettingsInteractionError::InvalidSettingName(setting)),
+        };
+
+        self.update_settings_file()?;
+
+        Ok(self.clone())
+    }
+    
+    /// Overwrites the settings file with the current in-memory state
+    ///
+    /// # Returns
+    /// * [`Ok`] -> `()` on success
+    /// * [`Err`] -> The type of error that occurred
+    ///
+    /// # Errors
+    /// * [`SettingsInteractionError::SettingsFileAccessing`] if the settings file cannot be created or written
+    /// * [`SettingsInteractionError::JsonReading`] if the settings cannot be serialized
+    pub fn update_settings_file(&self) -> Result<(), SettingsInteractionError> {
+        let settings_file = File::create(&PATHS.settings_file)?;
+        serde_json::to_writer_pretty(settings_file, &self)?;
+
+        Ok(())
+    }
+}
 
 
 
@@ -129,111 +233,6 @@ impl FromStr for ConflictResolution {
             "Overwrite" => Ok(Self::Overwrite),
             _ => Err(SettingsInteractionError::InvalidSettingValue(s.to_string())),
         }
-    }
-}
-
-
-
-/// All user-configurable settings for ATA
-#[derive(Serialize, Deserialize, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct Settings {
-    /// Visual layout theme applied to the UI
-    pub style: String,
-    /// Color palette applied to the UI
-    pub palette: Palette,
-    /// Order in which mods are shown in the list view
-    pub sorting_order: SortingOrder,
-
-    /// How to handle file conflicts when installing a mod
-    pub files_conflict_resolution: ConflictResolution,
-    /// Whether to keep the extracted temporary folder after a successful installation
-    pub keep_extracted_folders: bool,
-    /// Filesystem path where extracted temporary folders are stored
-    pub extracted_folders_location: PathBuf,
-    /// Absolute path to the game's installation folder
-    pub game_path: PathBuf,
-    
-    /// Discord Rich Presence application ID; empty string means Rich Presence is disabled
-    pub discord_rich_presence: String,
-}
-
-impl Settings {
-    /// Creates a [`Settings`] instance from the settings file (*~/.config/ATA/settings.json*)
-    ///
-    /// Also expands any shell variables or `~` present in `game_path` and `extracted_folders_location`.
-    ///
-    /// # Returns
-    /// * [`Ok`] -> A [`Settings`] instance populated from the settings file
-    /// * [`Err`] -> The type of error that occurred
-    ///
-    /// # Errors
-    /// * [`SettingsInteractionError::EnvExpansion`] if a shell variable in a path cannot be resolved
-    /// * [`SettingsInteractionError::SettingsFileAccessing`] if the settings file cannot be opened
-    /// * [`SettingsInteractionError::JsonReading`] if the settings file cannot be parsed as JSON
-    pub fn load_settings() -> Result<Self, SettingsInteractionError> {
-        let settings_file = File::open(&PATHS.settings_file)?;
-        let reader = BufReader::new(settings_file);
-        let mut contents: Settings = serde_json::from_reader(reader)?;
-
-        for path in [&mut contents.game_path, &mut contents.extracted_folders_location] {
-            *path = expand_path(&path.to_string_lossy())?;
-        }
-
-        Ok(contents)
-    }
-
-    /// Overwrites the settings file with the current in-memory state
-    ///
-    /// # Returns
-    /// * [`Ok`] -> `()` on success
-    /// * [`Err`] -> The type of error that occurred
-    ///
-    /// # Errors
-    /// * [`SettingsInteractionError::SettingsFileAccessing`] if the settings file cannot be created or written
-    /// * [`SettingsInteractionError::JsonReading`] if the settings cannot be serialized
-    pub fn update_settings_file(&self) -> Result<(), SettingsInteractionError> {
-        let settings_file = File::create(&PATHS.settings_file)?;
-        serde_json::to_writer_pretty(settings_file, &self)?;
-
-        Ok(())
-    }
-
-    /// Parses `value`, applies it to the setting identified by `setting`, and persists the change
-    ///
-    /// Setting names use camelCase and mirror the JSON keys in settings.json
-    /// (e.g. `"sortingOrder"`, `"gamePath"`).
-    ///
-    /// # Arguments
-    /// * `setting` - camelCase name of the setting to update
-    /// * `value` - String representation of the new value
-    ///
-    /// # Returns
-    /// * [`Ok`] -> A clone of the updated [`Settings`] struct
-    /// * [`Err`] -> The type of error that occurred
-    ///
-    /// # Errors
-    /// * [`SettingsInteractionError::InvalidSettingName`] if `setting` does not match any known setting
-    /// * [`SettingsInteractionError::InvalidSettingValue`] if `value` cannot be parsed for the target setting
-    /// * [`SettingsInteractionError::EnvExpansion`] if a shell variable in a path value cannot be resolved
-    /// * [`SettingsInteractionError::SettingsFileAccessing`] if the settings file cannot be written
-    /// * [`SettingsInteractionError::JsonReading`] if the updated settings cannot be serialized
-    pub fn update_setting(&mut self, setting: String, value: String) -> Result<Settings, SettingsInteractionError> {
-        match setting.as_str() {
-            "style" => self.style = value,
-            "palette" => self.palette = value.parse::<Palette>()?,
-            "sortingOrder" => self.sorting_order = value.parse::<SortingOrder>()?,
-            "filesConflictResolution" => self.files_conflict_resolution = value.parse::<ConflictResolution>()?,
-            "keepExtractedFolders" => self.keep_extracted_folders = value.parse::<bool>().map_err(|_| SettingsInteractionError::InvalidSettingValue(value.clone()))?,
-            "extractedFoldersLocation" => self.extracted_folders_location = expand_path(&value)?,
-            "gamePath" => self.game_path = expand_path(&value)?,
-            "discordRichPresence" => self.discord_rich_presence = value,
-            _ => return Err(SettingsInteractionError::InvalidSettingName(setting)),
-        };
-
-        self.update_settings_file()?;
-
-        Ok(self.clone())
     }
 }
 

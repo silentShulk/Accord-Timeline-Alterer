@@ -1,8 +1,8 @@
 //! **main** is the entry point for ATA
 //!
 //! Parses CLI arguments and dispatches to the correct subcommand.
-//! Each subcommand prints its result as JSON to stdout so the Tauri
-//! frontend (or any other caller) can consume it programmatically.
+//! Each subcommand prints its result as JSON to stdout so the
+//! caller can consume it programmatically.
 //!
 //! This includes:
 //! * **install**: `--install [PATH] [NAME]` — install a mod from a compressed archive
@@ -150,14 +150,14 @@ fn main() {
         println!("{}", json(&[disabled_mod]));
         // action = Action::Disabling;
     }
+    else if args.list_settings {
+        println!("{}", json(&settings))
+    }
     else if let Some(params) = args.settings {
         let changed_setting = settings.update_setting(params[0].clone(), params[1].clone())
             .unwrap_or_else(|er| { eprintln!("Settings Change failed: {}", er); std::process::exit(1); });
         println!("{}", json(&[changed_setting]));
         // action = Action::ChangingSettings;
-    }
-    else if args.list_settings {
-        println!("{}", json(&settings))
     }
     else if args.automata {
         launch_automata()
@@ -175,7 +175,6 @@ fn main() {
     }
     else {
         eprintln!("No command given");
-        std::process::exit(1);
     }
 
     // update_discord_rich_presence(&settings.discord_rich_presence, action).unwrap_or_else(|er| {

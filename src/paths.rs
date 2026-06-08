@@ -1,6 +1,10 @@
 use std::path::PathBuf;
+
 use std::sync::LazyLock;
+
 use dirs::{home_dir, config_dir, data_local_dir};
+
+
 
 pub struct Paths {
     pub executable: PathBuf,
