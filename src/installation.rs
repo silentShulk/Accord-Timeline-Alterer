@@ -28,7 +28,7 @@ use crate::data::{Data, DataInteractionError, Mod, ModType};
 
 use chrono::Utc;
 
-use crate::settings::Settings;
+use crate::settings::{ConflictResolution, Settings};
 
 
 
@@ -59,24 +59,36 @@ use crate::settings::Settings;
 /// * [`InstallationError::InvalidFileName`] if one of the paths to a mod file is either root or ends in `..`
 /// * [`InstallationError::FileCopying`] if a problem occurs during file copying
 /// * [`InstallationError::DataSaving`] if the mod data couldn't be saved to the data file
-pub fn install_mod(compressed_mod_folder_path: &Path, answered_name: String, settings: &Settings, config: &mut Data) -> Result<Mod, InstallationError> {
+pub fn install_mod(compressed_mod_folder_path: &Path, answered_name: String, forced_overwrite: bool, settings: &Settings, data: &mut Data) -> Result<Option<Mod>, InstallationError> {
     if !compressed_mod_folder_path.exists() {
         return Err(InstallationError::FileNotFound(compressed_mod_folder_path.to_path_buf()));
     }
-    config.name_exists(&answered_name)?;
+    data.name_exists(&answered_name)?;
 
     let mut mod_folder_path = decompress_folder(&compressed_mod_folder_path)?;
 
     let mod_data = get_mod_data(&mut mod_folder_path)?
        	.ok_or(InstallationError::ModlessFolder(mod_folder_path.clone()))?;
 
-    let mod_files = install(&mod_data.0, &mod_data.1, &settings.game_path, &answered_name)?;
-    let installed_mod = Mod::new(answered_name.clone(), mod_files, true, mod_data.0, Utc::now());
+    let conflicting_files = check_for_conflicts(&mod_data.1, data);
+    let need_to_warn = match (settings.files_conflict_resolution.clone(), forced_overwrite) {
+        (ConflictResolution::Warn, false) => true,
+        (ConflictResolution::Warn, true) => false,
+        (ConflictResolution::Overwrite, _) => false
+    };
 
-   	config.save_new_mod(&installed_mod)
-        .map_err(|er| InstallationError::Config(er))?;
-
-    Ok(installed_mod)
+    if need_to_warn {
+        Ok(None)
+    } else {
+        remove_conflicts(conflicting_files)?;
+        let mod_files = install(&mod_data.0, &answered_name, &mod_data.1, &settings.game_path)?;
+        let installed_mod = Mod::new(answered_name.clone(), mod_files, true, mod_data.0, Utc::now());
+    
+       	data.save_new_mod(&installed_mod)
+            .map_err(|er| InstallationError::Config(er))?;
+    
+        Ok(Some(installed_mod))
+    }
 }
 
 
@@ -221,7 +233,6 @@ fn decompress_zip(zipped_mod_folder: &Path, zip_extraction_folder: PathBuf) -> R
 
     Ok(zip_extraction_folder)
 }
-
 /// Decompresses a 7z archive
 /// 
 /// # Arguments
@@ -239,7 +250,6 @@ fn decompress_7z(sevzipped_mod_folder: &Path, sevzip_extraction_folder: PathBuf)
 
 	Ok(sevzip_extraction_folder)
 }
-
 /// Decompresses a RAR archive
 /// 
 /// # Arguments
@@ -330,6 +340,28 @@ fn get_mod_data(mod_folder_path: &Path) -> Result<Option<(ModType, Vec<PathBuf>)
 
 
 
+fn check_for_conflicts(mod_files: &Vec<PathBuf>, data: &Data) -> Vec<PathBuf> {
+    let mut duplicate_files: Vec<PathBuf> = vec![];
+    
+    // for file in mod_files {
+    //     for installed_mod in data.mods.clone() {
+    //         for installed_file in installed_mod.files {
+    //             if file == &installed_file {
+    //                 duplicate_files.push(file.clone());
+    //             }
+    //         }
+    //     }
+    // }
+
+    duplicate_files
+}
+
+
+
+fn remove_conflicts(conflicts: Vec<PathBuf>) -> Result<(), InstallationError> {
+    Ok(())
+}
+
 /// Installs the mod files to the game folder
 /// 
 /// # Arguments
@@ -345,12 +377,13 @@ fn get_mod_data(mod_folder_path: &Path) -> Result<Option<(ModType, Vec<PathBuf>)
 /// * [`InstallationError::FileAccessing`] if a problem occurs during file/folder creation/deletion
 /// * [`InstallationError::InvalidFileName`] if one of the paths to a mod file is either root or ends in `..`
 /// * [`InstallationError::FileCopying`] if a problem occurs during file copying
-fn install(mod_type: &ModType, mod_files: &Vec<PathBuf>, game_path: &PathBuf, mod_name: &String) -> Result<Vec<PathBuf>, InstallationError> {
+fn install(mod_type: &ModType, mod_name: &String, mod_files: &Vec<PathBuf>, game_path: &PathBuf) -> Result<Vec<PathBuf>, InstallationError> {
     let mut installation_folder = game_path.join(mod_type.get_corresponding_folder());
 
     if mod_type == &ModType::Textures {
         installation_folder = installation_folder.join(mod_name);
     }
+
     
     copy_mod_files(mod_files, PathBuf::from(installation_folder))
 }

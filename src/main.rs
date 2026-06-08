@@ -46,9 +46,14 @@ use clap::Parser;
 #[command(name = "ATA", version = "0.01", about = "Accord's Timeline Alterer, the cross-platform NieR Automata mod manager")]
 struct Args {
     /// Install a mod from a compressed archive at `PATH` and register it under `NAME`
-    #[arg(long = "install", short='i', num_args = 2, value_names = ["PATH", "NAME"],
+    #[arg(long = "install", short='i', num_args = 2..=3, value_names = ["PATH", "NAME", "OVERWRITE"],
         help="Install a mod from a given path with a specified name")]
     install: Option<Vec<String>>,
+
+    #[arg(long="overwrite", short='o',
+        help="Forces any older conflicting file to be overwritten",
+        requires="install")]
+    overwrite: bool,
 
     /// Uninstall the mod registered under `NAME`, removing its files from the game directory
     #[arg(long="uninstall", short='u', value_name = "NAME",
@@ -112,7 +117,8 @@ fn main() {
     // });   
 
     if let Some(params) = args.install {
-        let installed_mod = install_mod(&PathBuf::from(&params[0]), params[1].clone(), &settings, &mut data,)
+        let overwrite = args.overwrite;
+        let installed_mod = install_mod(&PathBuf::from(&params[0]), params[1].clone(), overwrite, &settings, &mut data,)
             .unwrap_or_else(|er| { eprintln!("Install failed: {}", er); std::process::exit(1); });
         println!("{}", json(&[installed_mod]));
         // action = Action::Installing;

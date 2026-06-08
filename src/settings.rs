@@ -116,20 +116,17 @@ impl FromStr for SortingOrder {
 pub enum ConflictResolution {
     /// Prompt the user to decide for each conflicting file (default)
     #[default]
-    Ask,
+    Warn,
     /// Silently overwrite the existing file with the mod's version
     Overwrite,
-    /// Silently leave the existing file in place and skip the mod's version
-    Skip,
 }
 impl FromStr for ConflictResolution {
     type Err = SettingsInteractionError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "Ask" => Ok(Self::Ask),
+            "Warn" => Ok(Self::Warn),
             "Overwrite" => Ok(Self::Overwrite),
-            "Skip" => Ok(Self::Skip),
             _ => Err(SettingsInteractionError::InvalidSettingValue(s.to_string())),
         }
     }
