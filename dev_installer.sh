@@ -1,5 +1,7 @@
 #!/bin/bash
 # ATA dev installer — Linux
+# Iterations over arrays of paths are done to chekc if thigs exist
+# Without it the stderr would polluted with warnings
 
 # Remove folders for mod files (will be recreated by ATA if necessary)
 # This doesn't affect a working installation of the game
@@ -11,9 +13,12 @@ rm -rf "$HOME/.local/share/Steam/steamapps/common/NieRAutomata/data/wax"
 
 
 # Create folders strictly necessary for development testing
-# With these development testing is possible even if the game isn't installed
-mkdir -p "$HOME/.local/share/Steam/steamapps/common/NieRAutomata/data"
-mkdir -p "$HOME/.local/share/Steam/steamapps/common/NieRAutomata/wax/mods"
+# With these, development testing is possible even if the game isn't installed
+for mod_path in "$HOME/.local/share/Steam/steamapps/common/NieRAutomata/data" "$HOME/.local/share/Steam/steamapps/common/NieRAutomata/wax/mods"; do
+    if [ ! -d "$mod_path" ]; then
+        mkdir -p "$mod_path"
+    fi
+done
 
 
 
@@ -24,11 +29,14 @@ settings="$HOME/.config/ATA"
 uis="$HOME/.local/share/UIs"
 apps="$HOME/.local/share/Apps"
 
-mkdir -p $exe
-mkdir -p $data
-mkdir -p $settings
-mkdir -p $uis
-mkdir -p $apps
+ata_dirs=(
+    "$exe" "$data" "$settings" "$uis" "$apps"
+)
+for dir in "${ata_dirs[@]}"; do
+    if [ ! -d "$dir" ]; then
+        mkdir -p "$dir"
+    fi
+done
 
 
 

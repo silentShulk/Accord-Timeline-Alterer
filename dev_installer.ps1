@@ -1,4 +1,6 @@
 # ATA dev installer — Windows
+# Iterations over arrays of paths are done to chekc if thigs exist
+# Without it the stderr would polluted with warnings 
 
 # Remove folders for mod files (will be recreated by ATA if necessary)
 # This doesn't affect a working installation of the game
@@ -9,10 +11,8 @@ $modPaths = @(
     "$HOME/.local/share/Steam/steamapps/common/NieRAutomata/data/wax"
 )
 
-foreach ($path in $modPaths)
-{
-    if (Test-Path $path)
-    {
+foreach ($path in $modPaths) {
+    if (Test-Path $path) {
         rm -r -f $path
     }
 }
@@ -20,8 +20,12 @@ foreach ($path in $modPaths)
 
 
 # Create folders strictly necessary for development testing
-mkdir "$HOME/.local/share/Steam/steamapps/common/NieRAutomata/data" -Force | Out-Null
-mkdir "$HOME/.local/share/Steam/steamapps/common/NieRAutomata/wax/mods" -Force | Out-Null
+$required_mod_paths = "$HOME/.local/share/Steam/steamapps/common/NieRAutomata/data", "$HOME/.local/share/Steam/steamapps/common/NieRAutomata/wax/mods"
+foreach ($rmp in $required_mod_paths) {
+    if (-not(Test-Path -Path $rmp)) {
+        mkdir $rmp -Force | Out-Null
+    }
+}
 
 
 
@@ -32,11 +36,12 @@ $settings = "$env:APPDATA\ATA"
 $uis      = "$env:LOCALAPPDATA\ATA\UIs"
 $apps     = "$env:LOCALAPPDATA\ATA\Apps"
 
-mkdir $exe -Force | Out-Null
-mkdir $data -Force | Out-Null
-mkdir $settings -Force | Out-Null
-mkdir $uis -Force | Out-Null
-mkdir $apps -Force | Out-Null
+$ata_dirs = $exe, $data, $settings, $uis, $apps
+foreach ($dir in $ata_dirs) {
+    if (-not(Test-Path -Path $dir)) {
+        mkdir $dir -Force | Out-Null
+    }
+}
 
 
 
