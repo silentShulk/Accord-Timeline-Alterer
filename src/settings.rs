@@ -112,7 +112,7 @@ impl FromStr for SortingOrder {
 
 
 /// What ATA does when a mod file would overwrite a file already present in the game folder
-#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Default)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Default, Copy)]
 pub enum ConflictResolution {
     /// Prompt the user to decide for each conflicting file (default)
     #[default]

@@ -55,7 +55,7 @@ cat << 'JSON' > "$settings/settings.json"
   "style": "SilentShulk",
   "palette": "Automata",
   "sortingOrder": "ModType",
-  "filesConflictResolution": "Ask",
+  "filesConflictResolution": "Warn",
   "keepExtractedFolders": true,
   "extractedFoldersLocation": "$HOME/Downloads",
   "gamePath": "$HOME/.local/share/Steam/steamapps/common/NieRAutomata",

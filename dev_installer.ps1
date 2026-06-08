@@ -5,10 +5,10 @@
 # Remove folders for mod files (will be recreated by ATA if necessary)
 # This doesn't affect a working installation of the game
 $modPaths = @(
-    "$HOME/.local/share/Steam/steamapps/common/NieRAutomata/data/pl",
-    "$HOME/.local/share/Steam/steamapps/common/NieRAutomata/data/wp",
-    "$HOME/.local/share/Steam/steamapps/common/NieRAutomata/data/bg",
-    "$HOME/.local/share/Steam/steamapps/common/NieRAutomata/data/wax"
+    "C:/Program Files (x86)/Steam/steamapps/common/NieRAutomata/data/pl",
+    "C:/Program Files (x86)/Steam/steamapps/common/NieRAutomata/data/wp",
+    "C:/Program Files (x86)/Steam/steamapps/common/NieRAutomata/data/bg",
+    "C:/Program Files (x86)/Steam/steamapps/common/NieRAutomata/data/wax"
 )
 
 foreach ($path in $modPaths) {
@@ -20,7 +20,7 @@ foreach ($path in $modPaths) {
 
 
 # Create folders strictly necessary for development testing
-$required_mod_paths = "$HOME/.local/share/Steam/steamapps/common/NieRAutomata/data", "$HOME/.local/share/Steam/steamapps/common/NieRAutomata/wax/mods"
+$required_mod_paths = "C:/Program Files (x86)/Steam/steamapps/common/NieRAutomata/data", "C:/Program Files (x86)/Steam/steamapps/common/NieRAutomata/wax/mods"
 foreach ($rmp in $required_mod_paths) {
     if (-not(Test-Path -Path $rmp)) {
         mkdir $rmp -Force | Out-Null
@@ -63,7 +63,7 @@ $escapedHome = $HOME -replace '\\', '\\\\'
   "style": "SilentShulk",
   "palette": "Automata",
   "sortingOrder": "ModType",
-  "filesConflictResolution": "Ask",
+  "filesConflictResolution": "Warn",
   "keepExtractedFolders": true,
   "extractedFoldersLocation": "${escapedHome}\\\\Downloads",
   "gamePath": "C:\\\\Program Files (x86)\\\\Steam\\\\steamapps\\\\common\\\\NieRAutomata",

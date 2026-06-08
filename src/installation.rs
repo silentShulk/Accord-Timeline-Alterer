@@ -10,6 +10,7 @@
 
 
 
+use std::collections::HashMap;
 use std::fs::{File, copy, create_dir_all, remove_file};
 
 use std::path::{PathBuf, Path};
@@ -63,7 +64,9 @@ pub fn install_mod(compressed_mod_folder_path: &Path, answered_name: String, for
     if !compressed_mod_folder_path.exists() {
         return Err(InstallationError::FileNotFound(compressed_mod_folder_path.to_path_buf()));
     }
-    data.name_exists(&answered_name)?;
+    if data.name_exists(&answered_name) {
+        return Err(InstallationError::Config(DataInteractionError::ModNameExists(answered_name)))
+    }
 
     let mut mod_folder_path = decompress_folder(&compressed_mod_folder_path)?;
 
@@ -71,16 +74,22 @@ pub fn install_mod(compressed_mod_folder_path: &Path, answered_name: String, for
        	.ok_or(InstallationError::ModlessFolder(mod_folder_path.clone()))?;
 
     let conflicting_files = check_for_conflicts(&mod_data.1, data);
-    let need_to_warn = match (settings.files_conflict_resolution.clone(), forced_overwrite) {
+    let need_to_warn = match (settings.files_conflict_resolution, forced_overwrite) {
         (ConflictResolution::Warn, false) => true,
         (ConflictResolution::Warn, true) => false,
         (ConflictResolution::Overwrite, _) => false
     };
+    let early_stop =
+        conflicting_files.len() > 0
+        &&
+        need_to_warn;
 
-    if need_to_warn {
+    if early_stop {
         Ok(None)
     } else {
-        remove_conflicts(conflicting_files)?;
+        if conflicting_files.len() > 0 {
+            data.remove_conflicts(conflicting_files);
+        }
         let mod_files = install(&mod_data.0, &answered_name, &mod_data.1, &settings.game_path)?;
         let installed_mod = Mod::new(answered_name.clone(), mod_files, true, mod_data.0, Utc::now());
     
@@ -340,27 +349,23 @@ fn get_mod_data(mod_folder_path: &Path) -> Result<Option<(ModType, Vec<PathBuf>)
 
 
 
-fn check_for_conflicts(mod_files: &Vec<PathBuf>, data: &Data) -> Vec<PathBuf> {
-    let mut duplicate_files: Vec<PathBuf> = vec![];
-    
-    // for file in mod_files {
-    //     for installed_mod in data.mods.clone() {
-    //         for installed_file in installed_mod.files {
-    //             if file == &installed_file {
-    //                 duplicate_files.push(file.clone());
-    //             }
-    //         }
-    //     }
-    // }
+fn check_for_conflicts(mod_files: &[PathBuf], data: &Data) -> Vec<(String, PathBuf)> {
+    let installed: HashMap<&std::ffi::OsStr, (&str, &PathBuf)> = data.mods.iter()
+        .flat_map(|m| m.files.iter().filter_map(move |f| {
+            f.file_name().map(|name| (name, (m.name.as_str(), f)))
+        }))
+        .collect();
 
-    duplicate_files
+    mod_files.iter()
+        .filter_map(|file| {
+            file.file_name()
+                .and_then(|name| installed.get(name))
+                .map(|(mod_name, installed_path)| (mod_name.to_string(), (*installed_path).clone()))
+        })
+        .collect()
 }
 
 
-
-fn remove_conflicts(conflicts: Vec<PathBuf>) -> Result<(), InstallationError> {
-    Ok(())
-}
 
 /// Installs the mod files to the game folder
 /// 

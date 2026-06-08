@@ -67,7 +67,7 @@ pub enum DataInteractionError {
 /// Mod types supported by ATA
 ///
 /// Mod types not currently supported are not generic, but mod-specific (like NAIOM)
-#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug, PartialOrd, Ord, Copy)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug, PartialOrd, Ord, Copy, Hash)]
 pub enum ModType {
     /// `DLL` mods are unique mods
     /// They contain **dll** files and other files
@@ -152,7 +152,7 @@ impl fmt::Display for ModType {
 }
 
 /// Everything ATA needs to track about an installed mod
-#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug, PartialOrd, Ord)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug, PartialOrd, Ord, Hash)]
 pub struct Mod {
     /// Name of the mod given by the user
     pub name: String,
@@ -269,11 +269,14 @@ impl Data {
     ///
     /// # Errors
     /// * [`DataInteractionError::ModNameExists`] if a mod with `name` already exists
-    pub fn name_exists(&self, name: &str) -> Result<(), DataInteractionError> {
-        if self.mods.iter().any(|m| m.name == name) {
-            Err(DataInteractionError::ModNameExists(name.to_owned()))
-        } else {
-            Ok(())
+    pub fn name_exists(&self, name: &str) -> bool {
+        self.mods.iter().any(|m| m.name == name) 
+    }
+
+    pub fn remove_conflicts(&mut self, conflicts_list: Vec<(String, PathBuf)>) {
+        for conflict in conflicts_list {
+            let conflicting_mod = self.get_mod_by_name(conflict.0.as_ref()).unwrap();
+            self.mods[conflicting_mod.0].files.retain(|f| f != &conflict.1);
         }
     }
 

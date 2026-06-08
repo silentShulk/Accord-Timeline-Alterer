@@ -120,7 +120,11 @@ fn main() {
         let overwrite = args.overwrite;
         let installed_mod = install_mod(&PathBuf::from(&params[0]), params[1].clone(), overwrite, &settings, &mut data,)
             .unwrap_or_else(|er| { eprintln!("Install failed: {}", er); std::process::exit(1); });
-        println!("{}", json(&[installed_mod]));
+        if installed_mod.is_some() {
+            println!("{}", json(&[installed_mod.unwrap()]));
+        } else {
+            println!("Warning: Conflicts found")
+        }
         // action = Action::Installing;
     }
     else if let Some(name) = args.uninstall {
