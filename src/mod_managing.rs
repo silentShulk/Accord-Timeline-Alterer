@@ -15,6 +15,7 @@ use crate::data::{Data, Mod, DataInteractionError};
 
 use crate::settings::SortingOrder;
 
+use std::ffi::OsStr;
 use std::fs::{create_dir_all, rename};
 
 use std::path::PathBuf;
@@ -162,15 +163,7 @@ fn enable_files(files_to_enable: Vec<PathBuf>) -> Result<Vec<PathBuf>, EnablingD
     let mut updated_files:Vec<PathBuf> = vec![];
     
     for file in files_to_enable {
-   	    let Some(filename) = file.file_name() else {
-  		    return Err(EnablingDisablingError::DotDotPath(file.to_path_buf()))
-   	    };
-   	    let Some(parent) = file.parent() else {
-  		    return Err(EnablingDisablingError::ParentlessOrEmptyPath(file.to_path_buf()))
-   	    };
-   	    let Some(enabled_folder) = parent.parent() else {
-  		    return Err(EnablingDisablingError::ParentlessOrEmptyPath(parent.to_path_buf()))
-   	    };
+        let (filename, enabled_folder) = get_toggled_folder(true, &file)?;
     
         let new_path = enabled_folder.join(filename);
   	    rename(file, &new_path)?;
@@ -184,13 +177,7 @@ fn disable_files(files_to_disable: Vec<PathBuf>) -> Result<Vec<PathBuf>, Enablin
     let mut updated_files:Vec<PathBuf> = vec![];
     
     for file in files_to_disable {
-	    let Some(filename) = file.file_name() else {
- 		    return Err(EnablingDisablingError::DotDotPath(file.to_path_buf()))
- 	    };
-     	let Some(parent) = file.parent() else {
-      		return Err(EnablingDisablingError::ParentlessOrEmptyPath(file.to_path_buf()))
-      	};
-      	let disabled_folder = parent.join(".disabled/");
+        let (filename, disabled_folder) = get_toggled_folder(false, &file)?;
        
         create_dir_all(&disabled_folder)
             .map_err(|er| EnablingDisablingError::FolderCreation(disabled_folder.to_path_buf(), er))?;
@@ -202,4 +189,30 @@ fn disable_files(files_to_disable: Vec<PathBuf>) -> Result<Vec<PathBuf>, Enablin
     }
 
     Ok(updated_files)
+}
+
+fn get_toggled_folder<'a>(enabled: bool, file: &'a PathBuf) -> Result<(&'a OsStr, PathBuf), EnablingDisablingError> {
+    if enabled {
+   	    let Some(filename) = file.file_name() else {
+  		    return Err(EnablingDisablingError::DotDotPath(file.to_path_buf()))
+   	    };
+   	    let Some(parent) = file.parent() else {
+  		    return Err(EnablingDisablingError::ParentlessOrEmptyPath(file.to_path_buf()))
+   	    };
+   	    let Some(enabled_folder) = parent.parent() else {
+  		    return Err(EnablingDisablingError::ParentlessOrEmptyPath(parent.to_path_buf()))
+   	    };
+
+        Ok((filename, enabled_folder.to_path_buf()))
+    } else {
+   	    let Some(filename) = file.file_name() else {
+  		    return Err(EnablingDisablingError::DotDotPath(file.to_path_buf()))
+   	    };
+       	let Some(parent) = file.parent() else {
+      		return Err(EnablingDisablingError::ParentlessOrEmptyPath(file.to_path_buf()))
+       	};
+       	let disabled_folder = parent.join(".disabled/");
+
+        Ok((filename, disabled_folder))
+    }
 }
