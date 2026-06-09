@@ -14,23 +14,21 @@
 //!
 //! Main function: [`main`]
 
-
-
 mod data;
 mod installation;
-mod uninstallation;
-mod mod_managing;
-mod settings;
-mod paths;
 mod misc;
+mod mod_managing;
+mod paths;
+mod settings;
+mod uninstallation;
 
 use data::Data;
 use installation::install_mod;
-use uninstallation::uninstall_mod;
-use mod_managing::{list_mods, enable_mod, disable_mod};
-use settings::Settings;
-use paths::PATHS;
 use misc::{/*update_discord_rich_presence, Action,*/ launch_automata};
+use mod_managing::{disable_mod, enable_mod, list_mods};
+use paths::PATHS;
+use settings::Settings;
+use uninstallation::uninstall_mod;
 
 use std::path::PathBuf;
 
@@ -43,36 +41,54 @@ use clap::Parser;
 /// Exactly one of the flags must be provided per invocation.
 /// Clap validates argument counts and generates `--help` output automatically.
 #[derive(Parser)]
-#[command(name = "ATA", version = "0.01", about = "Accord's Timeline Alterer, the cross-platform NieR Automata mod manager")]
+#[command(
+    name = "ATA",
+    version = "0.01",
+    about = "Accord's Timeline Alterer, the cross-platform NieR Automata mod manager"
+)]
 struct Args {
     /// Install a mod from a compressed archive at `PATH` and register it under `NAME`
     #[arg(long = "install", short='i', num_args = 2..=3, value_names = ["PATH", "NAME", "OVERWRITE"],
         help="Install a mod from a given path with a specified name")]
     install: Option<Vec<String>>,
 
-    #[arg(long="overwrite", short='o',
-        help="Forces any older conflicting file to be overwritten",
-        requires="install")]
+    #[arg(
+        long = "overwrite",
+        short = 'o',
+        help = "Forces any older conflicting file to be overwritten",
+        requires = "install"
+    )]
     overwrite: bool,
 
     /// Uninstall the mod registered under `NAME`, removing its files from the game directory
-    #[arg(long="uninstall", short='u', value_name = "NAME",
-        help="Uninstall a mod by its name")]
+    #[arg(
+        long = "uninstall",
+        short = 'u',
+        value_name = "NAME",
+        help = "Uninstall a mod by its name"
+    )]
     uninstall: Option<String>,
 
     /// Print all installed mods as a JSON array and exit
-    #[arg(long="list-mods", short='m',
-        help="List all installed mods")]
+    #[arg(long = "list-mods", short = 'm', help = "List all installed mods")]
     list_mods: bool,
 
     /// Move the mod's files back into the game directory so the game loads them
-    #[arg(long="enable", short='e', value_name = "NAME",
-        help="Enable a mod by its name")]
+    #[arg(
+        long = "enable",
+        short = 'e',
+        value_name = "NAME",
+        help = "Enable a mod by its name"
+    )]
     enable: Option<String>,
 
     /// Move the mod's files to a `.disabled/` subfolder so the game ignores them
-    #[arg(long="disable", short='d', value_name = "NAME",
-        help="Disable a mod by its name")]
+    #[arg(
+        long = "disable",
+        short = 'd',
+        value_name = "NAME",
+        help = "Disable a mod by its name"
+    )]
     disable: Option<String>,
 
     /// Update the setting identified by `NAME` to `VALUE` and persist the change
@@ -80,16 +96,17 @@ struct Args {
         help="Path to the settings file")]
     settings: Option<Vec<String>>,
 
-    #[arg(long="list-settings", short='l',
-        help="List all settings and their values")]
+    #[arg(
+        long = "list-settings",
+        short = 'l',
+        help = "List all settings and their values"
+    )]
     list_settings: bool,
 
-    #[arg(long="automata", short='a',
-        help="Start NieR:Automata")]
+    #[arg(long = "automata", short = 'a', help = "Start NieR:Automata")]
     automata: bool,
 
-    #[arg(long="files", short='f',
-        help="List all of ATA's files")]
+    #[arg(long = "files", short = 'f', help = "List all of ATA's files")]
     files: bool,
 }
 
@@ -114,72 +131,83 @@ fn main() {
 
     // update_discord_rich_presence(&settings.discord_rich_presence, action).unwrap_or_else(|er| {
     //     eprintln!("Problem using DRP: {}", er);
-    // });   
+    // });
 
     if let Some(params) = args.install {
         let overwrite = args.overwrite;
-        let installed_mod = install_mod(&PathBuf::from(&params[0]), params[1].clone(), overwrite, &settings, &mut data,)
-            .unwrap_or_else(|er| { eprintln!("Install failed: {}", er); std::process::exit(1); });
+        let installed_mod = install_mod(
+            &PathBuf::from(&params[0]),
+            params[1].clone(),
+            overwrite,
+            &settings,
+            &mut data,
+        )
+        .unwrap_or_else(|er| {
+            eprintln!("Install failed: {}", er);
+            std::process::exit(1);
+        });
         if installed_mod.is_some() {
             println!("{}", json(&[installed_mod.unwrap()]));
         } else {
             println!("Warning: Conflicts found")
         }
         // action = Action::Installing;
-    }
-    else if let Some(name) = args.uninstall {
-        let uninstalled_mod = uninstall_mod(&mut data, name)
-            .unwrap_or_else(|er| { eprintln!("Uninstall failed: {}", er); std::process::exit(1); });
+    } else if let Some(name) = args.uninstall {
+        let uninstalled_mod = uninstall_mod(&mut data, name).unwrap_or_else(|er| {
+            eprintln!("Uninstall failed: {}", er);
+            std::process::exit(1);
+        });
         println!("{}", json(&[uninstalled_mod]));
         // action = Action::Uninstalling
-    }
-    else if args.list_mods {
+    } else if args.list_mods {
         let sorted_mods = list_mods(&settings.sorting_order, &data.mods);
         println!("{}", json(&sorted_mods));
         // action = Action::ListingMods;
-    }
-    else if let Some(name) = args.enable {
-        let enabled_mod = enable_mod(&mut data, name)
-            .unwrap_or_else(|er| { eprintln!("Enable failed: {}", er); std::process::exit(1); });
+    } else if let Some(name) = args.enable {
+        let enabled_mod = enable_mod(&mut data, name).unwrap_or_else(|er| {
+            eprintln!("Enable failed: {}", er);
+            std::process::exit(1);
+        });
         println!("{}", json(&[enabled_mod]));
         // action = Action::Enabling;
-    }
-    else if let Some(name) = args.disable {
-        let disabled_mod = disable_mod(&mut data, name)
-            .unwrap_or_else(|er| { eprintln!("Disable failed: {}", er); std::process::exit(1); });
+    } else if let Some(name) = args.disable {
+        let disabled_mod = disable_mod(&mut data, name).unwrap_or_else(|er| {
+            eprintln!("Disable failed: {}", er);
+            std::process::exit(1);
+        });
         println!("{}", json(&[disabled_mod]));
         // action = Action::Disabling;
-    }
-    else if args.list_settings {
+    } else if args.list_settings {
         println!("{}", json(&settings))
-    }
-    else if let Some(params) = args.settings {
-        let changed_setting = settings.update_setting(params[0].clone(), params[1].clone())
-            .unwrap_or_else(|er| { eprintln!("Settings Change failed: {}", er); std::process::exit(1); });
+    } else if let Some(params) = args.settings {
+        let changed_setting = settings
+            .update_setting(params[0].clone(), params[1].clone())
+            .unwrap_or_else(|er| {
+                eprintln!("Settings Change failed: {}", er);
+                std::process::exit(1);
+            });
         println!("{}", json(&[changed_setting]));
         // action = Action::ChangingSettings;
-    }
-    else if args.automata {
-        launch_automata()
-            .unwrap_or_else(|er| eprintln!("Game failed to launch. {}", er));
+    } else if args.automata {
+        launch_automata().unwrap_or_else(|er| eprintln!("Game failed to launch. {}", er));
         println!("Game starting...");
         // action = Action::Playing;
-    }
-    else if args.files {
-        println!("{:?}
+    } else if args.files {
+        println!(
+            "{:?}
 {:?}
 {:?}
 {:?}
 {:?}",
-        PATHS.executable, PATHS.data_file, PATHS.settings_file, PATHS.uis_dir, PATHS.apps_dir)
-    }
-    else {
+            PATHS.executable, PATHS.data_file, PATHS.settings_file, PATHS.uis_dir, PATHS.apps_dir
+        )
+    } else {
         eprintln!("No command given");
     }
 
     // update_discord_rich_presence(&settings.discord_rich_presence, action).unwrap_or_else(|er| {
     //     eprintln!("Problem using DRP: {}", er);
-    // });   
+    // });
 }
 
 

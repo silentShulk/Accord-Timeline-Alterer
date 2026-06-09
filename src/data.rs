@@ -26,7 +26,7 @@ use std::fmt::{self};
 
 use thiserror::Error;
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 use chrono::{DateTime, Utc};
 
@@ -59,10 +59,14 @@ impl Data {
         let mut contents: Data = serde_json::from_reader(reader)?;
 
         for m in &mut contents.mods {
-            m.files = m.files.iter().map(|f| {
-                let s = f.to_string_lossy().into_owned();
-                PathBuf::from(full(&s).map(|e| e.into_owned()).unwrap_or(s))
-            }).collect();
+            m.files = m
+                .files
+                .iter()
+                .map(|f| {
+                    let s = f.to_string_lossy().into_owned();
+                    PathBuf::from(full(&s).map(|e| e.into_owned()).unwrap_or(s))
+                })
+                .collect();
         }
 
         Ok(contents)
@@ -80,13 +84,15 @@ impl Data {
     /// # Errors
     /// * [`DataInteractionError::ModNameExists`] if a mod with `name` already exists
     pub fn name_exists(&self, name: &str) -> bool {
-        self.mods.iter().any(|m| m.name == name) 
+        self.mods.iter().any(|m| m.name == name)
     }
 
     pub fn remove_conflicts(&mut self, conflicts_list: Vec<(String, PathBuf)>) {
         for conflict in conflicts_list {
             let conflicting_mod = self.get_mod_by_name(conflict.0.as_ref()).unwrap();
-            self.mods[conflicting_mod.0].files.retain(|f| f != &conflict.1);
+            self.mods[conflicting_mod.0]
+                .files
+                .retain(|f| f != &conflict.1);
         }
     }
 
@@ -140,7 +146,11 @@ impl Data {
     /// * [`DataInteractionError::HomeEnvNotFound`] if the data directory cannot be determined
     /// * [`DataInteractionError::DataFileAccessing`] if the data file cannot be written
     /// * [`DataInteractionError::JsonReading`] if the data cannot be serialized
-    pub fn switch_mod_state(&mut self, index: usize, new_files: Vec<PathBuf>) -> Result<(), DataInteractionError> {
+    pub fn switch_mod_state(
+        &mut self,
+        index: usize,
+        new_files: Vec<PathBuf>,
+    ) -> Result<(), DataInteractionError> {
         self.mods[index].files = new_files;
         self.mods[index].enabled = !self.mods[index].enabled;
         self.update_data_file()
@@ -155,11 +165,13 @@ impl Data {
     /// * [`Some`]`(usize, Mod)` — index in [`Data::mods`] and a clone of the matching mod
     /// * [`None`] if no mod with that name exists
     pub fn get_mod_by_name(&self, name: &str) -> Option<(usize, Mod)> {
-        self.mods.iter().enumerate()
+        self.mods
+            .iter()
+            .enumerate()
             .find(|(_, m)| m.name == name)
             .map(|(i, m)| (i, m.clone()))
     }
-    
+
     /// Overwrites the data file with the current in-memory state
     ///
     /// # Returns
@@ -237,7 +249,13 @@ impl Mod {
     ///
     /// # Returns
     /// * A fully populated [`Mod`] instance with a generated [`Mod::uid`]
-    pub fn new(name: String, files: Vec<PathBuf>, enabled: bool, mod_type: ModType, install_date: DateTime<Utc>) -> Self {
+    pub fn new(
+        name: String,
+        files: Vec<PathBuf>,
+        enabled: bool,
+        mod_type: ModType,
+        install_date: DateTime<Utc>,
+    ) -> Self {
         Self {
             uid: Self::get_uid(&name, &mod_type, &install_date),
             name,

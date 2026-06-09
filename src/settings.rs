@@ -23,7 +23,7 @@ use std::path::PathBuf;
 
 use thiserror::Error;
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 use shellexpand::full;
 
@@ -48,7 +48,7 @@ pub struct Settings {
     pub extracted_folders_location: PathBuf,
     /// Absolute path to the game's installation folder
     pub game_path: PathBuf,
-    
+
     /// Discord Rich Presence application ID; empty string means Rich Presence is disabled
     pub discord_rich_presence: String,
 }
@@ -70,7 +70,10 @@ impl Settings {
         let reader = BufReader::new(settings_file);
         let mut contents: Settings = serde_json::from_reader(reader)?;
 
-        for path in [&mut contents.game_path, &mut contents.extracted_folders_location] {
+        for path in [
+            &mut contents.game_path,
+            &mut contents.extracted_folders_location,
+        ] {
             *path = expand_path(&path.to_string_lossy())?;
         }
 
@@ -96,13 +99,23 @@ impl Settings {
     /// * [`SettingsInteractionError::EnvExpansion`] if a shell variable in a path value cannot be resolved
     /// * [`SettingsInteractionError::SettingsFileAccessing`] if the settings file cannot be written
     /// * [`SettingsInteractionError::JsonReading`] if the updated settings cannot be serialized
-    pub fn update_setting(&mut self, setting: String, value: String) -> Result<Settings, SettingsInteractionError> {
+    pub fn update_setting(
+        &mut self,
+        setting: String,
+        value: String,
+    ) -> Result<Settings, SettingsInteractionError> {
         match setting.as_str() {
             "style" => self.style = value,
             "palette" => self.palette = value.parse::<Palette>()?,
             "sortingOrder" => self.sorting_order = value.parse::<SortingOrder>()?,
-            "filesConflictResolution" => self.files_conflict_resolution = value.parse::<ConflictResolution>()?,
-            "keepExtractedFolders" => self.keep_extracted_folders = value.parse::<bool>().map_err(|_| SettingsInteractionError::InvalidSettingValue(value.clone()))?,
+            "filesConflictResolution" => {
+                self.files_conflict_resolution = value.parse::<ConflictResolution>()?
+            }
+            "keepExtractedFolders" => {
+                self.keep_extracted_folders = value
+                    .parse::<bool>()
+                    .map_err(|_| SettingsInteractionError::InvalidSettingValue(value.clone()))?
+            }
             "extractedFoldersLocation" => self.extracted_folders_location = expand_path(&value)?,
             "gamePath" => self.game_path = expand_path(&value)?,
             "discordRichPresence" => self.discord_rich_presence = value,
@@ -113,7 +126,7 @@ impl Settings {
 
         Ok(self.clone())
     }
-    
+
     /// Overwrites the settings file with the current in-memory state
     ///
     /// # Returns
@@ -157,7 +170,9 @@ pub enum SettingsInteractionError {
     InvalidSettingName(String),
 
     /// The provided value cannot be parsed into the type required by the target setting
-    #[error("Unable to parse received setting value ({0}) into a value acceptable for the given setting")]
+    #[error(
+        "Unable to parse received setting value ({0}) into a value acceptable for the given setting"
+    )]
     InvalidSettingValue(String),
 }
 
@@ -214,7 +229,6 @@ impl FromStr for SortingOrder {
     }
 }
 
-
 /// What ATA does when a mod file would overwrite a file already present in the game folder
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Default, Copy)]
 pub enum ConflictResolution {
@@ -236,8 +250,6 @@ impl FromStr for ConflictResolution {
     }
 }
 
-
-
 /// Expands shell variables and `~` in a path string and returns a [`PathBuf`]
 ///
 /// # Arguments
@@ -247,7 +259,7 @@ impl FromStr for ConflictResolution {
 /// * [`Ok`] -> Expanded [`PathBuf`]
 /// * [`Err`] -> [`SettingsInteractionError::EnvExpansion`] if a variable cannot be resolved
 fn expand_path(value: &str) -> Result<PathBuf, SettingsInteractionError> {
-    let expanded = full(value)
-        .map_err(|_| SettingsInteractionError::EnvExpansion(VarError::NotPresent))?;
+    let expanded =
+        full(value).map_err(|_| SettingsInteractionError::EnvExpansion(VarError::NotPresent))?;
     Ok(PathBuf::from(expanded.as_ref()))
 }

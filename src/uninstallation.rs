@@ -7,7 +7,7 @@
 //!
 //! Main function: [`uninstall_mod`]
 
-use crate::data::{Data, Mod, DataInteractionError};
+use crate::data::{Data, DataInteractionError, Mod};
 
 use std::fs::remove_file;
 
@@ -38,9 +38,10 @@ pub fn uninstall_mod(config: &mut Data, mod_name: String) -> Result<Mod, Uninsta
 
     remove_mod_files(&mod_to_uninstall.1.files)?;
 
-    config.remove_mod(mod_to_uninstall.0)
+    config
+        .remove_mod(mod_to_uninstall.0)
         .map_err(|e| UninstallationError::DataSaving(e))?;
-    
+
     Ok(mod_to_uninstall.1)
 }
 
@@ -84,8 +85,7 @@ pub enum UninstallationError {
 /// * [`UninstallationError::FileDeletion`] if any file could not be removed
 pub fn remove_mod_files(mod_files: &[PathBuf]) -> Result<(), UninstallationError> {
     for file in mod_files {
-        remove_file(&file)
-            .map_err(|er| UninstallationError::FileDeletion(file.clone(), er))?;
+        remove_file(&file).map_err(|er| UninstallationError::FileDeletion(file.clone(), er))?;
     }
 
     Ok(())
