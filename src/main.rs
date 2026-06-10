@@ -146,11 +146,7 @@ fn main() {
             eprintln!("Install failed: {}", er);
             std::process::exit(1);
         });
-        if installed_mod.is_some() {
-            println!("{}", json(&[installed_mod.unwrap()]));
-        } else {
-            println!("Warning: Conflicts found")
-        }
+        println!("{}", json(&[installed_mod]));
         // action = Action::Installing;
     } else if let Some(name) = args.uninstall {
         let uninstalled_mod = uninstall_mod(&mut data, name).unwrap_or_else(|er| {

@@ -18,6 +18,8 @@ use std::fs::File;
 
 use std::env::VarError;
 
+use std::collections::{HashMap, HashSet};
+
 use std::io::BufReader;
 
 use std::path::PathBuf;
@@ -31,6 +33,8 @@ use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
 
 use shellexpand::full;
+
+use strum::{EnumIter, IntoEnumIterator};
 
 
 
@@ -87,18 +91,19 @@ impl Data {
         self.mods.iter().any(|m| m.name == name)
     }
 
-    pub fn remove_conflicts(&mut self, conflicts_list: Vec<(String, PathBuf)>) {
+    pub fn remove_conflicts(&mut self, conflicts_list: &HashMap<PathBuf, String>) {
         for conflict in conflicts_list {
-            let conflicting_mod = self.get_mod_by_name(conflict.0.as_ref()).unwrap();
-            self.mods[conflicting_mod.0]
+            let conflicting_mod_idx = self.get_mod_by_name(conflict.1.as_ref()).unwrap().0;
+            let conflict_filename = conflict.0.file_name();
+            self.mods[conflicting_mod_idx]
                 .files
-                .retain(|f| f != &conflict.1);
+                .retain(|f| f.file_name() != conflict_filename);
         }
     }
 
     /// Appends `new_mod` to the in-memory list and writes the data file
     ///
-    /// # Arguments
+    /// # Argumentsa
     /// * `new_mod` - The [`Mod`] to add
     ///
     /// # Returns
@@ -214,12 +219,9 @@ pub enum DataInteractionError {
     #[error("Unable to read contents of data file ({path:?}). {0}", path=&PATHS.data_file)]
     JsonReading(#[from] serde_json::Error),
 
-    /// A mod with the given name is already present in the data file
-    #[error("The mod name '{0}' already exists")]
-    ModNameExists(String),
+    #[error("'{0}' is not an extension of a know mod type")]
+    InvalidModTypeExtension(String),
 }
-
-
 
 /// Everything ATA needs to track about an installed mod
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug, PartialOrd, Ord, Hash)]
@@ -300,10 +302,14 @@ impl fmt::Display for Mod {
     }
 }
 
+
+
 /// Mod types supported by ATA
 ///
 /// Mod types not currently supported are not generic, but mod-specific (like NAIOM)
-#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug, PartialOrd, Ord, Copy, Hash)]
+#[derive(
+    Serialize, Deserialize, Clone, PartialEq, Eq, Debug, PartialOrd, Ord, Copy, Hash, EnumIter,
+)]
 pub enum ModType {
     /// `DLL` mods are unique mods
     /// They contain **dll** files and other files
@@ -372,6 +378,21 @@ impl ModType {
             ModType::ReshadePreset => "RePr",
         }
     }
+
+    pub fn all_extensions() -> HashSet<&'static str> {
+        ModType::iter()
+            .flat_map(|t| match t {
+                ModType::DLL => ["dll"].as_slice(),
+                ModType::Textures => ["dds"].as_slice(),
+                ModType::PlayerModels | ModType::WeaponModels | ModType::WorldModels => {
+                    ["dtt", "dat"].as_slice()
+                }
+                ModType::CutsceneReplacements => ["usm"].as_slice(),
+                ModType::ReshadePreset => ["ini"].as_slice(),
+            })
+            .copied()
+            .collect()
+    }
 }
 impl fmt::Display for ModType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -383,6 +404,24 @@ impl fmt::Display for ModType {
             ModType::WorldModels => write!(f, "World Models"),
             ModType::CutsceneReplacements => write!(f, "Cutscene Replacements"),
             ModType::ReshadePreset => write!(f, "ReShade Preset"),
+        }
+    }
+}
+impl TryFrom<(&str, &str)> for ModType {
+    type Error = DataInteractionError;
+
+    fn try_from(file_description: (&str, &str)) -> Result<Self, DataInteractionError> {
+        match file_description {
+            ("dll", _) => Ok(ModType::DLL),
+            ("dds", _) => Ok(ModType::Textures),
+            ("dtt" | "dat", "pl") => Ok(ModType::PlayerModels),
+            ("dtt" | "dat", "wp") => Ok(ModType::WeaponModels),
+            ("dtt" | "dat", "bg") => Ok(ModType::WorldModels),
+            ("usm", _) => Ok(ModType::CutsceneReplacements),
+            ("ini", _) => Ok(ModType::ReshadePreset),
+            (ext, _) => Err(DataInteractionError::InvalidModTypeExtension(
+                ext.to_string(),
+            )),
         }
     }
 }

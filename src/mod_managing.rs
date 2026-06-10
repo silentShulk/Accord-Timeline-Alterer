@@ -120,7 +120,7 @@ pub enum EnablingDisablingError {
     FolderCreation(PathBuf, std::io::Error),
 
     /// A file could not be moved between the enabled and disabled locations
-    #[error("Couldn't move file from downloaded folder to game folder. {0}")]
+    #[error("Couldn't move file to enabled/disabled folder. {0}")]
     Renaming(#[from] std::io::Error),
 
     /// The data file could not be updated after moving the files
