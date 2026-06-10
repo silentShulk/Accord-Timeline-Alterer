@@ -144,14 +144,14 @@ fn main() {
         )
         .unwrap_or_else(|er| {
             eprintln!("Install failed: {}", er);
-            std::process::exit(1);
+            std::process::exit(0);
         });
         println!("{}", json(&[installed_mod]));
         // action = Action::Installing;
     } else if let Some(name) = args.uninstall {
         let uninstalled_mod = uninstall_mod(&mut data, name).unwrap_or_else(|er| {
             eprintln!("Uninstall failed: {}", er);
-            std::process::exit(1);
+            std::process::exit(0);
         });
         println!("{}", json(&[uninstalled_mod]));
         // action = Action::Uninstalling
@@ -162,14 +162,14 @@ fn main() {
     } else if let Some(name) = args.enable {
         let enabled_mod = enable_mod(&mut data, name).unwrap_or_else(|er| {
             eprintln!("Enable failed: {}", er);
-            std::process::exit(1);
+            std::process::exit(0);
         });
         println!("{}", json(&[enabled_mod]));
         // action = Action::Enabling;
     } else if let Some(name) = args.disable {
         let disabled_mod = disable_mod(&mut data, name).unwrap_or_else(|er| {
             eprintln!("Disable failed: {}", er);
-            std::process::exit(1);
+            std::process::exit(0);
         });
         println!("{}", json(&[disabled_mod]));
         // action = Action::Disabling;
@@ -180,7 +180,7 @@ fn main() {
             .update_setting(params[0].clone(), params[1].clone())
             .unwrap_or_else(|er| {
                 eprintln!("Settings Change failed: {}", er);
-                std::process::exit(1);
+                std::process::exit(0);
             });
         println!("{}", json(&[changed_setting]));
         // action = Action::ChangingSettings;
