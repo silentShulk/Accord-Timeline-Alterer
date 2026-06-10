@@ -13,7 +13,7 @@ $modPaths = @(
 
 foreach ($path in $modPaths) {
     if (Test-Path $path) {
-        rm -r -f $path
+        rm -r -Force $path
     }
 }
 
