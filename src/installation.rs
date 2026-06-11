@@ -18,7 +18,7 @@ use std::fs::{File, copy, create_dir_all};
 
 use std::path::{Path, PathBuf};
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use thiserror::Error;
 
@@ -82,7 +82,7 @@ pub fn install_mod(
     let mod_data = get_mod_data(&mut mod_folder_path)?
         .ok_or(InstallationError::ModlessFolder(mod_folder_path.clone()))?;
 
-    let conflicting_files = check_for_conflicts(&mod_data.1, data)?;
+    let conflicting_files = check_for_conflicts(mod_data.values().collect::<Vec<_>>(), data)?;
     let conflicts_present = conflicting_files.len() > 0;
 
     let should_install: bool = match (
@@ -100,17 +100,16 @@ pub fn install_mod(
     match should_install {
         false => Err(InstallationError::FileConflict(conflicting_files)),
         true => {
-            let mod_files = install(
-                &mod_data.0,
+            let installed_files = install(
+                &mod_data,
                 &answered_name,
-                &mod_data.1,
                 &settings.game_path,
             )?;
             let installed_mod = Mod::new(
                 answered_name.clone(),
-                mod_files,
+                installed_files,
                 true,
-                mod_data.0,
+                ModType::try_from(HashSet::from(mod_data.into_keys().collect::<HashSet<_>>()))?,
                 Utc::now(),
             );
 
@@ -319,9 +318,8 @@ fn decompress_rar(
 /// * [`InstallationError::FileAccessing`] if problem occur during file/folder creation/deletion
 fn get_mod_data(
     mod_folder_path: &Path,
-) -> Result<Option<(ModType, Vec<PathBuf>)>, InstallationError> {
-    let mut mod_contained: Option<ModType> = None;
-    let mut mod_files = vec![];
+) -> Result<Option<HashMap<ModType, PathBuf>>, InstallationError> {
+    let mut mod_files: HashMap<ModType, PathBuf> = HashMap::new();
 
     for entry in WalkDir::new(&mod_folder_path) {
         let current_entry = entry?;
@@ -342,22 +340,23 @@ fn get_mod_data(
             continue;
         }
 
-        mod_files.push(entry_path.to_path_buf());
-
         let prefix: String = get_file_name(entry_path)?.chars().take(2).collect();
 
-        if mod_contained.is_none() {
-            mod_contained = ModType::try_from((extension, prefix.as_str())).ok();
+        if let Some(entry_mod_type) = ModType::try_from((extension, prefix.as_ref())).ok() {
+            mod_files.insert(entry_mod_type, entry_path.to_path_buf());
         }
     }
 
-    Ok(mod_contained.map(|t| (t, mod_files)))
+    match mod_files.len() > 0 {
+        true => Ok(Some(mod_files)),
+        false => Ok(None)
+    }
 }
 
 
 
 fn check_for_conflicts<'a>(
-    mod_files: &[PathBuf],
+    mod_files: Vec<&PathBuf>,
     data: &'a Data,
 ) -> Result<HashMap<PathBuf, String>, InstallationError> {
     let mut installed: HashMap<&str, &'a String> = HashMap::new();
@@ -370,7 +369,7 @@ fn check_for_conflicts<'a>(
 
     let mut conflicts: HashMap<PathBuf, String> = HashMap::new();
     for f in mod_files {
-        let name = get_file_name(f)?;
+        let name = get_file_name(&f)?;
         if let Some(mod_name) = installed.get(name) {
             conflicts.insert(f.clone(), mod_name.to_string());
         }
@@ -407,18 +406,19 @@ fn get_warning_necessity(warn_setting: ConflictResolution, overwrite_flag: bool)
 /// * [`InstallationError::InvalidFileName`] if one of the paths to a mod file is either root or ends in `..`
 /// * [`InstallationError::FileCopying`] if a problem occurs during file copying
 fn install(
-    mod_type: &ModType,
+    mod_files: &HashMap<ModType, PathBuf>,
     mod_name: &String,
-    mod_files: &[PathBuf],
     game_path: &PathBuf,
 ) -> Result<Vec<PathBuf>, InstallationError> {
-    let mut installation_folder = game_path.join(mod_type.get_corresponding_folder());
+    let mut copied_files = vec![];
+    
+    for file in mod_files {
+        let installation_folder = game_path.join(file.0.get_corresponding_folder(mod_name));
 
-    if mod_type == &ModType::Textures {
-        installation_folder = installation_folder.join(mod_name);
+        copied_files.push(copy_mod_fle(file.1, installation_folder)?);
     }
 
-    copy_mod_files(mod_files, PathBuf::from(installation_folder))
+    Ok(copied_files)
 }
 
 /// Copies the mod files to the destination folder
@@ -435,23 +435,18 @@ fn install(
 /// * [`InstallationError::FileAccessing`] if a problem occurs during file/folder creation/deletion
 /// * [`InstallationError::InvalidFileName`] if one of the paths to a mod file is either root or ends in `..`
 /// * [`InstallationError::FileCopying`] if a problem occurs during file copying
-fn copy_mod_files(
-    mod_files: &[PathBuf],
-    destination_folder_path: PathBuf,
-) -> Result<Vec<PathBuf>, InstallationError> {
-    create_dir_all(&destination_folder_path)?;
+fn copy_mod_fle(
+    mod_file: &PathBuf,
+    destination_folder: PathBuf,
+) -> Result<PathBuf, InstallationError> {
+    create_dir_all(&destination_folder)?;
 
-    let mut copied_files: Vec<PathBuf> = vec![];
-    for file in mod_files {
-        let filename = get_file_name(file)?;
+    let filename = get_file_name(&mod_file)?;
 
-        let copied_file = destination_folder_path.join(filename);
-        copy(file, &copied_file)?;
+    let copied_file = destination_folder.join(filename);
+    copy(mod_file, &copied_file)?;
 
-        copied_files.push(copied_file);
-    }
-
-    Ok(copied_files)
+    Ok(copied_file)
 }
 
 

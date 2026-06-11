@@ -221,6 +221,9 @@ pub enum DataInteractionError {
 
     #[error("'{0}' is not an extension of a know mod type")]
     InvalidModTypeExtension(String),
+
+    #[error("Couldn't not infer mod type from mod files")]
+    UnclearModType,
 }
 
 /// Everything ATA needs to track about an installed mod
@@ -294,7 +297,7 @@ impl fmt::Display for Mod {
         let mod_description = format!(
             "Name: {}\n\tFiles location: {:?}\n\tEnabled? {}\n\tMod Type: {}",
             self.name,
-            self.mod_type.get_corresponding_folder(),
+            self.mod_type.get_corresponding_folder(&self.name),
             if self.enabled { "Yes" } else { "No" },
             self.mod_type,
         );
@@ -344,10 +347,10 @@ impl ModType {
     /// * `data/movie/` for cutscene replacements
     /// * `.` for reshade presets
     /// * empty path for DLL mods (game root)
-    pub fn get_corresponding_folder(&self) -> PathBuf {
+    pub fn get_corresponding_folder(&self, mod_name: &String) -> PathBuf {
         match self {
             ModType::DLL => PathBuf::new(),
-            ModType::Textures => PathBuf::from("wax").join("mods"),
+            ModType::Textures => PathBuf::from("wax").join("mods").join(mod_name),
             ModType::PlayerModels => PathBuf::from("data").join("pl"),
             ModType::WeaponModels => PathBuf::from("data").join("wp"),
             ModType::WorldModels => PathBuf::from("data").join("bg"),
@@ -422,6 +425,23 @@ impl TryFrom<(&str, &str)> for ModType {
             (ext, _) => Err(DataInteractionError::InvalidModTypeExtension(
                 ext.to_string(),
             )),
+        }
+    }
+}
+impl TryFrom<HashSet<ModType>> for ModType {
+    type Error = DataInteractionError;
+    
+    fn try_from(mod_types: HashSet<ModType>) -> Result<Self, DataInteractionError> {
+        if mod_types.len() == 0 {
+            Ok(mod_types.iter().next().unwrap().clone())
+        } else if mod_types.contains(&ModType::PlayerModels) {
+            Ok(ModType::PlayerModels)
+        } else if mod_types.contains(&ModType::WeaponModels) {
+            Ok(ModType::WeaponModels)
+        } else if mod_types.contains(&ModType::WorldModels) {
+            Ok(ModType::WorldModels)
+        } else {
+            Err(DataInteractionError::UnclearModType)
         }
     }
 }
