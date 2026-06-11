@@ -292,18 +292,6 @@ impl Mod {
         format!("{}{}{}", name, m_type, date)
     }
 }
-impl fmt::Display for Mod {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mod_description = format!(
-            "Name: {}\n\tFiles location: {:?}\n\tEnabled? {}\n\tMod Type: {}",
-            self.name,
-            self.mod_type.get_corresponding_folder(&self.name),
-            if self.enabled { "Yes" } else { "No" },
-            self.mod_type,
-        );
-        write!(f, "{}", mod_description)
-    }
-}
 
 
 
@@ -347,13 +335,31 @@ impl ModType {
     /// * `data/movie/` for cutscene replacements
     /// * `.` for reshade presets
     /// * empty path for DLL mods (game root)
-    pub fn get_corresponding_folder(&self, mod_name: &String) -> PathBuf {
+    pub fn get_corresponding_folder(&self, mod_name: &String, prefix: &str) -> PathBuf {
         match self {
             ModType::DLL => PathBuf::new(),
             ModType::Textures => PathBuf::from("wax").join("mods").join(mod_name),
-            ModType::PlayerModels => PathBuf::from("data").join("pl"),
-            ModType::WeaponModels => PathBuf::from("data").join("wp"),
-            ModType::WorldModels => PathBuf::from("data").join("bg"),
+            ModType::PlayerModels => {
+                if prefix == "pl" {
+                    PathBuf::from("data").join("pl")
+                } else {
+                    PathBuf::from("data").join("misctex")
+                }
+            },
+            ModType::WeaponModels => {
+                            if prefix == "wp" {
+                                PathBuf::from("data").join("wp")
+                            } else {
+                                PathBuf::from("data").join("misctex")
+                            }
+                        },
+            ModType::WorldModels => {
+                            if prefix == "bg" {
+                                PathBuf::from("data").join("bg")
+                            } else {
+                                PathBuf::from("data").join("misctex")
+                            }
+                        },
             ModType::CutsceneReplacements => PathBuf::from("data").join("movie"),
             ModType::ReshadePreset => PathBuf::new(),
         }
@@ -418,6 +424,7 @@ impl TryFrom<(&str, &str)> for ModType {
             ("dll", _) => Ok(ModType::DLL),
             ("dds", _) => Ok(ModType::Textures),
             ("dtt" | "dat", "pl") => Ok(ModType::PlayerModels),
+            ("dtt" | "dat", "mi") => Ok(ModType::PlayerModels),
             ("dtt" | "dat", "wp") => Ok(ModType::WeaponModels),
             ("dtt" | "dat", "bg") => Ok(ModType::WorldModels),
             ("usm", _) => Ok(ModType::CutsceneReplacements),

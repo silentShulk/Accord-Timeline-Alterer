@@ -82,7 +82,7 @@ pub fn install_mod(
     let mod_data = get_mod_data(&mut mod_folder_path)?
         .ok_or(InstallationError::ModlessFolder(mod_folder_path.clone()))?;
 
-    let conflicting_files = check_for_conflicts(mod_data.values().collect::<Vec<_>>(), data)?;
+    let conflicting_files = check_for_conflicts(mod_data.keys().collect::<Vec<_>>(), data)?;
     let conflicts_present = conflicting_files.len() > 0;
 
     let should_install: bool = match (
@@ -109,7 +109,7 @@ pub fn install_mod(
                 answered_name.clone(),
                 installed_files,
                 true,
-                ModType::try_from(HashSet::from(mod_data.into_keys().collect::<HashSet<_>>()))?,
+                ModType::try_from(HashSet::from(mod_data.into_values().collect::<HashSet<_>>()))?,
                 Utc::now(),
             );
 
@@ -318,8 +318,8 @@ fn decompress_rar(
 /// * [`InstallationError::FileAccessing`] if problem occur during file/folder creation/deletion
 fn get_mod_data(
     mod_folder_path: &Path,
-) -> Result<Option<HashMap<ModType, PathBuf>>, InstallationError> {
-    let mut mod_files: HashMap<ModType, PathBuf> = HashMap::new();
+) -> Result<Option<HashMap<PathBuf, ModType>>, InstallationError> {
+    let mut mod_files: HashMap<PathBuf, ModType> = HashMap::new();
 
     for entry in WalkDir::new(&mod_folder_path) {
         let current_entry = entry?;
@@ -343,7 +343,7 @@ fn get_mod_data(
         let prefix: String = get_file_name(entry_path)?.chars().take(2).collect();
 
         if let Some(entry_mod_type) = ModType::try_from((extension, prefix.as_ref())).ok() {
-            mod_files.insert(entry_mod_type, entry_path.to_path_buf());
+            mod_files.insert(entry_path.to_path_buf(), entry_mod_type);
         }
     }
 
@@ -406,16 +406,18 @@ fn get_warning_necessity(warn_setting: ConflictResolution, overwrite_flag: bool)
 /// * [`InstallationError::InvalidFileName`] if one of the paths to a mod file is either root or ends in `..`
 /// * [`InstallationError::FileCopying`] if a problem occurs during file copying
 fn install(
-    mod_files: &HashMap<ModType, PathBuf>,
+    mod_files: &HashMap<PathBuf, ModType>,
     mod_name: &String,
     game_path: &PathBuf,
 ) -> Result<Vec<PathBuf>, InstallationError> {
     let mut copied_files = vec![];
     
     for file in mod_files {
-        let installation_folder = game_path.join(file.0.get_corresponding_folder(mod_name));
+        let prefix: String = get_file_name(file.0)?.chars().take(2).collect();
+        
+        let installation_folder = game_path.join(file.1.get_corresponding_folder(mod_name, prefix.as_ref()));
 
-        copied_files.push(copy_mod_fle(file.1, installation_folder)?);
+        copied_files.push(copy_mod_file(file.0, installation_folder)?);
     }
 
     Ok(copied_files)
@@ -435,7 +437,7 @@ fn install(
 /// * [`InstallationError::FileAccessing`] if a problem occurs during file/folder creation/deletion
 /// * [`InstallationError::InvalidFileName`] if one of the paths to a mod file is either root or ends in `..`
 /// * [`InstallationError::FileCopying`] if a problem occurs during file copying
-fn copy_mod_fle(
+fn copy_mod_file(
     mod_file: &PathBuf,
     destination_folder: PathBuf,
 ) -> Result<PathBuf, InstallationError> {
