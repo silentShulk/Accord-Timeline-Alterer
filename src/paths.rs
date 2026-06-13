@@ -1,11 +1,14 @@
+use dirs::{config_dir, data_local_dir, home_dir};
+
 use std::path::PathBuf;
 
 use std::sync::LazyLock;
 
-use dirs::{config_dir, data_local_dir, home_dir};
+use serde::Serialize;
 
 
 
+#[derive(Serialize)]
 pub struct Paths {
     pub executable: PathBuf,
     pub data_file: PathBuf,

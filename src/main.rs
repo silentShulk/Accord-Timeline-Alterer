@@ -189,14 +189,7 @@ fn main() {
         println!("Game starting...");
         // action = Action::Playing;
     } else if args.files {
-        println!(
-            "{:?}
-{:?}
-{:?}
-{:?}
-{:?}",
-            PATHS.executable, PATHS.data_file, PATHS.settings_file, PATHS.uis_dir, PATHS.apps_dir
-        )
+        println!("{}", json(&*PATHS))
     } else {
         eprintln!("No command given");
     }
