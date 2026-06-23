@@ -146,35 +146,35 @@ fn main() {
             eprintln!("Install failed: {}", er);
             std::process::exit(0);
         });
-        println!("{}", json(&[installed_mod]));
+        print!("{}", json(&[installed_mod]));
         // action = Action::Installing;
     } else if let Some(name) = args.uninstall {
         let uninstalled_mod = uninstall_mod(&mut data, name).unwrap_or_else(|er| {
             eprintln!("Uninstall failed: {}", er);
             std::process::exit(0);
         });
-        println!("{}", json(&[uninstalled_mod]));
+        print!("{}", json(&[uninstalled_mod]));
         // action = Action::Uninstalling
     } else if args.list_mods {
         let sorted_mods = list_mods(&settings.sorting_order, &data.mods);
-        println!("{}", json(&sorted_mods));
+        print!("{}", json(&sorted_mods));
         // action = Action::ListingMods;
     } else if let Some(name) = args.enable {
         let enabled_mod = enable_mod(&mut data, name).unwrap_or_else(|er| {
             eprintln!("Enable failed: {}", er);
             std::process::exit(0);
         });
-        println!("{}", json(&[enabled_mod]));
+        print!("{}", json(&[enabled_mod]));
         // action = Action::Enabling;
     } else if let Some(name) = args.disable {
         let disabled_mod = disable_mod(&mut data, name).unwrap_or_else(|er| {
             eprintln!("Disable failed: {}", er);
             std::process::exit(0);
         });
-        println!("{}", json(&[disabled_mod]));
+        print!("{}", json(&[disabled_mod]));
         // action = Action::Disabling;
     } else if args.list_settings {
-        println!("{}", json(&settings))
+        print!("{}", json(&settings))
     } else if let Some(params) = args.settings {
         let changed_setting = settings
             .update_setting(params[0].clone(), params[1].clone())
@@ -182,14 +182,14 @@ fn main() {
                 eprintln!("Settings Change failed: {}", er);
                 std::process::exit(0);
             });
-        println!("{}", json(&[changed_setting]));
+        print!("{}", json(&[changed_setting]));
         // action = Action::ChangingSettings;
     } else if args.automata {
         launch_automata().unwrap_or_else(|er| eprintln!("Game failed to launch. {}", er));
-        println!("Game starting...");
+        print!("Game starting...");
         // action = Action::Playing;
     } else if args.files {
-        println!("{}", json(&*PATHS))
+        print!("{}", json(&*PATHS))
     } else {
         eprintln!("No command given");
     }
