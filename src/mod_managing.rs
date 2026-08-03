@@ -2,28 +2,24 @@
 //!
 //! Enabling and disabling both work by physically moving the mod's files between two
 //! locations on disk: the game's asset folder (enabled) and a `.disabled/` subdirectory
-//! inside that folder (disabled).  The new file paths are then persisted back to the
+//! inside that folder (disabled). The new file paths are then persisted back to the
 //! data file so ATA always knows where to find every mod.
 //!
 //! This includes:
 //! * **enabling**: Moving mod files from `.disabled/` back into the game's asset folder
 //! * **disabling**: Moving mod files out of the game's asset folder into `.disabled/`
+//! * **listing**: Sorting tracked mods according to user preferences
 //!
 //! Main functions: [`enable_mod`], [`disable_mod`]
-//!
-use crate::data::{Data, DataInteractionError, Mod};
 
+use crate::data::{Data, DataInteractionError, Mod};
 use crate::settings::SortingOrder;
 
 use std::fs::{create_dir_all, rename};
-
 use std::path::PathBuf;
-
 use std::ffi::OsStr;
 
 use thiserror::Error;
-
-
 
 /// Moves a disabled mod's files back into the game's asset folder and marks it as enabled
 ///
@@ -42,6 +38,7 @@ use thiserror::Error;
 ///
 /// # Errors
 /// * [`EnablingDisablingError::ModNotFound`] if no mod with `mod_name` exists
+/// * [`EnablingDisablingError::AlreadyEnabled`] if the mod is already enabled
 /// * [`EnablingDisablingError::DotDotPath`] if a stored file path ends with `..`
 /// * [`EnablingDisablingError::ParentlessOrEmptyPath`] if a stored file path has no parent
 /// * [`EnablingDisablingError::Renaming`] if a file could not be moved
@@ -65,7 +62,7 @@ pub fn enable_mod(data: &mut Data, mod_name: String) -> Result<Mod, EnablingDisa
 ///
 /// For each file currently in the game's asset folder, this function creates a
 /// `.disabled/` subdirectory alongside it (if it does not already exist), moves
-/// the file there, and records the new path.  After all files are moved,
+/// the file there, and records the new path. After all files are moved,
 /// [`Data::switch_mod_state`] is called to toggle the `enabled` flag and persist
 /// the updated paths to the data file.
 ///
@@ -79,6 +76,7 @@ pub fn enable_mod(data: &mut Data, mod_name: String) -> Result<Mod, EnablingDisa
 ///
 /// # Errors
 /// * [`EnablingDisablingError::ModNotFound`] if no mod with `mod_name` exists
+/// * [`EnablingDisablingError::AlreadyDisabled`] if the mod is already disabled
 /// * [`EnablingDisablingError::DotDotPath`] if a stored file path ends with `..`
 /// * [`EnablingDisablingError::ParentlessOrEmptyPath`] if a stored file path has no parent
 /// * [`EnablingDisablingError::FolderCreation`] if the `.disabled/` directory could not be created
@@ -97,8 +95,6 @@ pub fn disable_mod(data: &mut Data, mod_name: String) -> Result<Mod, EnablingDis
 
     Ok(data.mods[mod_to_disable.0].clone())
 }
-
-
 
 /// Errors that could occur while enabling or disabling a mod
 #[derive(Error, Debug)]
@@ -127,17 +123,25 @@ pub enum EnablingDisablingError {
     #[error("Couldn't update data file (data.json found inside data dir of OS). {0}")]
     DataSaving(#[from] DataInteractionError),
 
+    /// The requested mod is already enabled
     #[error("\"{0}\" is already enabled")]
     AlreadyEnabled(String),
 
+    /// The requested mod is already disabled
     #[error("\"{0}\" is already disabled")]
     AlreadyDisabled(String),
 }
 
-
-
+/// Returns a copy of the mods vector sorted according to the requested [`SortingOrder`]
+///
+/// # Arguments
+/// * `sorting_order` - Criterion used to sort the mod list
+/// * `mods` - Reference to the slice of [`Mod`]s to sort
+///
+/// # Returns
+/// * A [`Vec<Mod>`] sorted based on `sorting_order`
 pub fn list_mods(sorting_order: &SortingOrder, mods: &[Mod]) -> Vec<Mod> {
-    let mut sorted_mods: Vec<Mod> = mods.into();
+    let mut sorted_mods: Vec<Mod> = mods.to_vec();
 
     match sorting_order {
         SortingOrder::ModType => sorted_mods.sort_unstable_by_key(|m| m.mod_type),
@@ -150,16 +154,30 @@ pub fn list_mods(sorting_order: &SortingOrder, mods: &[Mod]) -> Vec<Mod> {
     sorted_mods
 }
 
-
-
+/// Dispatches a mod to be enabled or disabled depending on its current state
+///
+/// # Arguments
+/// * `mod_to_enable` - The mod whose files should be toggled
+///
+/// # Returns
+/// * [`Ok`] -> List of updated [`PathBuf`]s after moving
+/// * [`Err`] -> [`EnablingDisablingError`] if file moving fails
 fn toggle_files_state(mod_to_enable: Mod) -> Result<Vec<PathBuf>, EnablingDisablingError> {
     if mod_to_enable.enabled {
-        return disable_files(mod_to_enable.files);
+        disable_files(mod_to_enable.files)
     } else {
-        return enable_files(mod_to_enable.files);
+        enable_files(mod_to_enable.files)
     }
 }
 
+/// Moves files from `.disabled/` subdirectories back up into their parent active folders
+///
+/// # Arguments
+/// * `files_to_enable` - Paths of disabled files to enable
+///
+/// # Returns
+/// * [`Ok`] -> List of updated active file paths
+/// * [`Err`] -> [`EnablingDisablingError`] if renaming fails
 fn enable_files(files_to_enable: Vec<PathBuf>) -> Result<Vec<PathBuf>, EnablingDisablingError> {
     let mut updated_files: Vec<PathBuf> = vec![];
 
@@ -174,6 +192,15 @@ fn enable_files(files_to_enable: Vec<PathBuf>) -> Result<Vec<PathBuf>, EnablingD
 
     Ok(updated_files)
 }
+
+/// Moves files from their active asset folders into adjacent `.disabled/` subdirectories
+///
+/// # Arguments
+/// * `files_to_disable` - Paths of active files to disable
+///
+/// # Returns
+/// * [`Ok`] -> List of updated disabled file paths
+/// * [`Err`] -> [`EnablingDisablingError`] if creating directories or renaming fails
 fn disable_files(files_to_disable: Vec<PathBuf>) -> Result<Vec<PathBuf>, EnablingDisablingError> {
     let mut updated_files: Vec<PathBuf> = vec![];
 
@@ -193,6 +220,15 @@ fn disable_files(files_to_disable: Vec<PathBuf>) -> Result<Vec<PathBuf>, Enablin
     Ok(updated_files)
 }
 
+/// Determines the target directory and filename for enabling or disabling a file
+///
+/// # Arguments
+/// * `enabled` - `true` if target location is active folder (enabling), `false` for `.disabled/` (disabling)
+/// * `file` - Original path of the file
+///
+/// # Returns
+/// * [`Ok`]`((&OsStr, PathBuf))` -> Tuple containing the filename and target directory path
+/// * [`Err`] -> [`EnablingDisablingError`] if path component extraction fails
 fn get_toggled_folder<'a>(
     enabled: bool,
     file: &'a PathBuf,

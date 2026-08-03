@@ -10,12 +10,9 @@
 use crate::data::{Data, DataInteractionError, Mod};
 
 use std::fs::remove_file;
-
 use std::path::PathBuf;
 
 use thiserror::Error;
-
-
 
 /// Removes a mod's files from disk and deletes its entry from the data file
 ///
@@ -45,8 +42,6 @@ pub fn uninstall_mod(config: &mut Data, mod_name: String) -> Result<Mod, Uninsta
     Ok(mod_to_uninstall.1)
 }
 
-
-
 /// Errors that could occur while uninstalling a mod
 #[derive(Error, Debug)]
 pub enum UninstallationError {
@@ -66,8 +61,6 @@ pub enum UninstallationError {
     #[error("Couldn't update data file (data.json found inside data dir of OS). {0}")]
     DataSaving(#[from] DataInteractionError),
 }
-
-
 
 /// Deletes every file in `mod_files` from disk
 ///

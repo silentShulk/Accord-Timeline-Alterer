@@ -7,10 +7,12 @@
 //! This includes:
 //! * **install**: `--install [PATH] [NAME]` — install a mod from a compressed archive
 //! * **uninstall**: `--uninstall [NAME]` — remove an installed mod by name
-//! * **list**: `--list` — print all installed mods as a JSON array
+//! * **list**: `--list-mods` — print all installed mods as a JSON array
 //! * **enable**: `--enable [NAME]` — re-activate a disabled mod
 //! * **disable**: `--disable [NAME]` — deactivate an enabled mod without removing it
-//! * **settings**: `--settings [KEY] [VALUE]` — update a single setting by name
+//! * **settings**: `--settings [NAME] [VALUE]` — update a single setting by name
+//! * **automata**: `--automata` — launch NieR:Automata via Steam
+//! * **files**: `--files` — print application paths as JSON
 //!
 //! Main function: [`main`]
 
@@ -34,11 +36,9 @@ use std::path::PathBuf;
 
 use clap::Parser;
 
-
-
 /// CLI argument definitions for ATA
 ///
-/// Exactly one of the flags must be provided per invocation.
+/// Exactly one primary action flag should be provided per invocation.
 /// Clap validates argument counts and generates `--help` output automatically.
 #[derive(Parser)]
 #[command(
@@ -52,6 +52,7 @@ struct Args {
         help="Install a mod from a given path with a specified name")]
     install: Option<Vec<String>>,
 
+    /// Forces any older conflicting mod file to be overwritten during installation
     #[arg(
         long = "overwrite",
         short = 'o',
@@ -96,6 +97,7 @@ struct Args {
         help="Path to the settings file")]
     settings: Option<Vec<String>>,
 
+    /// Print all settings and their current values as JSON
     #[arg(
         long = "list-settings",
         short = 'l',
@@ -103,19 +105,18 @@ struct Args {
     )]
     list_settings: bool,
 
+    /// Start NieR:Automata via Steam
     #[arg(long = "automata", short = 'a', help = "Start NieR:Automata")]
     automata: bool,
 
+    /// List all internal application file paths used by ATA
     #[arg(long = "files", short = 'f', help = "List all of ATA's files")]
     files: bool,
 }
 
-
-
 /// Loads persisted state, dispatches to the requested subcommand, and prints the result as JSON
 ///
-/// Exits with a non-zero status code if loading state fails, if an unrecognised
-/// subcommand combination is given, or if the subcommand itself returns an error.
+/// Exits with a status code of `1` if loading data/settings fails, or `0` if a command fails execution.
 fn main() {
     let args = Args::parse();
     // let mut action = Action::JustOpened;
@@ -198,8 +199,6 @@ fn main() {
     //     eprintln!("Problem using DRP: {}", er);
     // });
 }
-
-
 
 /// Serializes `value` to a compact JSON string and returns it
 ///

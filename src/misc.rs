@@ -1,20 +1,21 @@
+//! **misc** is a module that contains utility functions for external processes
+//!
+//! This includes:
+//! * **launching**: Starting NieR:Automata using Steam URI invocation
+//!
+//! Main function: [`launch_automata`]
+
 // use std::sync::LazyLock;
-
 use std::process::Command;
-
 // use std::time::{SystemTime, UNIX_EPOCH};
-
 // use thiserror::Error;
-
 // use discord_rich_presence::{DiscordIpc, DiscordIpcClient, activity::Activity, activity::Timestamps};
-
-
 
 // #[derive(Error, Debug)]
 // pub enum DiscordError {
 //     #[error("There was an error connecting to discord's IPC. {0}")]
 //     ClientConnection(#[from] discord_rich_presence::error::Error),
-
+//
 //     #[error("Couldn't set the user's activity on discord")]
 //     ActivitySetting(discord_rich_presence::error::Error)
 // }
@@ -63,10 +64,20 @@ use std::process::Command;
 //         .timestamps(Timestamps::new().start(*START_TIME));
 
 //     client.set_activity(payload).map_err(|er| DiscordError::ActivitySetting(er))?;
-    
+//    
 //     Ok(())
 // }
 
+/// Launches NieR:Automata via Steam protocol standard (`steam://run/524220`)
+///
+/// Uses `xdg-open` on Linux targets and `cmd /C start` on Windows targets.
+///
+/// # Returns
+/// * [`Ok`] -> `()` on successfully spawning the process launcher command
+/// * [`Err`] -> [`std::io::Error`] if execution fails
+///
+/// # Errors
+/// * Returns [`std::io::Error`] if the underlying OS process launcher cannot be executed
 pub fn launch_automata() -> Result<(), std::io::Error> {
     let app_id = "524220";
     let steam_url = format!("steam://run/{}", app_id);

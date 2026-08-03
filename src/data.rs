@@ -15,28 +15,17 @@
 use crate::paths::PATHS;
 
 use std::fs::File;
-
 use std::env::VarError;
-
 use std::collections::{HashMap, HashSet};
-
 use std::io::BufReader;
-
 use std::path::PathBuf;
-
 use std::fmt::{self};
 
 use thiserror::Error;
-
 use serde::{Deserialize, Serialize};
-
 use chrono::{DateTime, Utc};
-
 use shellexpand::full;
-
 use strum::{EnumIter, IntoEnumIterator};
-
-
 
 /// Holds the runtime state of ATA: the full list of installed mods
 #[derive(Serialize, Deserialize)]
@@ -44,6 +33,7 @@ pub struct Data {
     /// List of all mods currently tracked by ATA
     pub mods: Vec<Mod>,
 }
+
 impl Data {
     /// Creates a [`Data`] instance from the data file
     ///
@@ -82,15 +72,16 @@ impl Data {
     /// * `name` - The candidate mod name to check
     ///
     /// # Returns
-    /// * [`Ok`] -> `()` if the name is free to use
-    /// * [`Err`] -> [`DataInteractionError::ModNameExists`] if the name is already taken
-    ///
-    /// # Errors
-    /// * [`DataInteractionError::ModNameExists`] if a mod with `name` already exists
+    /// * `true` if a mod with `name` already exists
+    /// * `false` if the name is free to use
     pub fn name_exists(&self, name: &str) -> bool {
         self.mods.iter().any(|m| m.name == name)
     }
 
+    /// Removes conflicting files from currently tracked mods by discarding them from the older mod's file list
+    ///
+    /// # Arguments
+    /// * `conflicts_list` - A map where the key is the conflicting file path and the value is the name of the existing mod owning it
     pub fn remove_conflicts(&mut self, conflicts_list: &HashMap<PathBuf, String>) {
         for conflict in conflicts_list {
             let conflicting_mod_idx = self.get_mod_by_name(conflict.1.as_ref()).unwrap().0;
@@ -103,7 +94,7 @@ impl Data {
 
     /// Appends `new_mod` to the in-memory list and writes the data file
     ///
-    /// # Argumentsa
+    /// # Arguments
     /// * `new_mod` - The [`Mod`] to add
     ///
     /// # Returns
@@ -195,8 +186,6 @@ impl Data {
     }
 }
 
-
-
 /// Errors that could occur during interactions with the saved data
 #[derive(Error, Debug)]
 pub enum DataInteractionError {
@@ -219,9 +208,11 @@ pub enum DataInteractionError {
     #[error("Unable to read contents of data file ({path:?}). {0}", path=&PATHS.data_file)]
     JsonReading(#[from] serde_json::Error),
 
+    /// The file extension does not correspond to any known mod type recognized by ATA
     #[error("'{0}' is not an extension of a know mod type")]
     InvalidModTypeExtension(String),
 
+    /// The mod folder contains files that prevent inferring a clear mod type
     #[error("Couldn't not infer mod type from mod files")]
     UnclearModType,
 }
@@ -242,6 +233,7 @@ pub struct Mod {
     /// Unique identifier derived from the mod's name, type, and install date
     pub uid: String,
 }
+
 impl Mod {
     /// Creates a new [`Mod`] and generates its [`Mod::uid`] automatically
     ///
@@ -293,8 +285,6 @@ impl Mod {
     }
 }
 
-
-
 /// Mod types supported by ATA
 ///
 /// Mod types not currently supported are not generic, but mod-specific (like NAIOM)
@@ -324,17 +314,21 @@ pub enum ModType {
     /// They contain **ini** files and other files
     ReshadePreset,
 }
+
 impl ModType {
     /// Returns the relative subfolder inside the game directory where this mod type's files live
     ///
+    /// # Arguments
+    /// * `mod_name` - Name of the mod
+    /// * `prefix` - Two-character prefix extracted from the filename (e.g., `"pl"`, `"wp"`, `"bg"`)
+    ///
     /// # Returns
-    /// * `wax/mods/` for textures
-    /// * `data/pl/` for player models
-    /// * `data/wp/` for weapon models
-    /// * `data/bg/` for world models
+    /// * `wax/mods/<mod_name>` for textures
+    /// * `data/pl/` or `data/misctex/` for player models
+    /// * `data/wp/` or `data/misctex/` for weapon models
+    /// * `data/bg/` or `data/misctex/` for world models
     /// * `data/movie/` for cutscene replacements
-    /// * `.` for reshade presets
-    /// * empty path for DLL mods (game root)
+    /// * empty path for reshade presets & DLL mods (game root)
     pub fn get_corresponding_folder(&self, mod_name: &String, prefix: &str) -> PathBuf {
         match self {
             ModType::DLL => PathBuf::new(),
@@ -345,21 +339,21 @@ impl ModType {
                 } else {
                     PathBuf::from("data").join("misctex")
                 }
-            },
+            }
             ModType::WeaponModels => {
-                            if prefix == "wp" {
-                                PathBuf::from("data").join("wp")
-                            } else {
-                                PathBuf::from("data").join("misctex")
-                            }
-                        },
+                if prefix == "wp" {
+                    PathBuf::from("data").join("wp")
+                } else {
+                    PathBuf::from("data").join("misctex")
+                }
+            }
             ModType::WorldModels => {
-                            if prefix == "bg" {
-                                PathBuf::from("data").join("bg")
-                            } else {
-                                PathBuf::from("data").join("misctex")
-                            }
-                        },
+                if prefix == "bg" {
+                    PathBuf::from("data").join("bg")
+                } else {
+                    PathBuf::from("data").join("misctex")
+                }
+            }
             ModType::CutsceneReplacements => PathBuf::from("data").join("movie"),
             ModType::ReshadePreset => PathBuf::new(),
         }
@@ -388,6 +382,10 @@ impl ModType {
         }
     }
 
+    /// Returns a set of all file extensions recognized by ATA across all supported mod types
+    ///
+    /// # Returns
+    /// * A [`HashSet`] of string slices containing extensions (`"dll"`, `"dds"`, `"dtt"`, `"dat"`, `"usm"`, `"ini"`)
     pub fn all_extensions() -> HashSet<&'static str> {
         ModType::iter()
             .flat_map(|t| match t {
@@ -403,6 +401,7 @@ impl ModType {
             .collect()
     }
 }
+
 impl fmt::Display for ModType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -416,6 +415,7 @@ impl fmt::Display for ModType {
         }
     }
 }
+
 impl TryFrom<(&str, &str)> for ModType {
     type Error = DataInteractionError;
 
@@ -435,12 +435,13 @@ impl TryFrom<(&str, &str)> for ModType {
         }
     }
 }
+
 impl TryFrom<HashSet<ModType>> for ModType {
     type Error = DataInteractionError;
-    
+
     fn try_from(mod_types: HashSet<ModType>) -> Result<Self, DataInteractionError> {
-        if mod_types.len() == 0 {
-            Ok(mod_types.iter().next().unwrap().clone())
+        if mod_types.len() == 1 {
+            Ok(mod_types.into_iter().next().unwrap())
         } else if mod_types.contains(&ModType::PlayerModels) {
             Ok(ModType::PlayerModels)
         } else if mod_types.contains(&ModType::WeaponModels) {

@@ -14,20 +14,13 @@
 use crate::paths::PATHS;
 
 use std::{fs::File, str::FromStr};
-
 use std::env::VarError;
-
 use std::io::BufReader;
-
 use std::path::PathBuf;
 
 use thiserror::Error;
-
 use serde::{Deserialize, Serialize};
-
 use shellexpand::full;
-
-
 
 /// All user-configurable settings for ATA
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -52,6 +45,7 @@ pub struct Settings {
     /// Discord Rich Presence application ID; empty string means Rich Presence is disabled
     pub discord_rich_presence: String,
 }
+
 impl Settings {
     /// Creates a [`Settings`] instance from the settings file (*~/.config/ATA/settings.json*)
     ///
@@ -144,8 +138,6 @@ impl Settings {
     }
 }
 
-
-
 /// Errors that could occur during interactions with the settings file
 #[derive(Error, Debug)]
 pub enum SettingsInteractionError {
@@ -176,8 +168,6 @@ pub enum SettingsInteractionError {
     InvalidSettingValue(String),
 }
 
-
-
 /// The color palette applied to the UI
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Default)]
 pub enum Palette {
@@ -187,6 +177,7 @@ pub enum Palette {
     /// Alternative palette, inspired by NieR: Replicant
     Replicant,
 }
+
 impl FromStr for Palette {
     type Err = SettingsInteractionError;
 
@@ -214,6 +205,7 @@ pub enum SortingOrder {
     /// Sort mods from largest to smallest total file size
     Size,
 }
+
 impl FromStr for SortingOrder {
     type Err = SettingsInteractionError;
 
@@ -238,6 +230,7 @@ pub enum ConflictResolution {
     /// Silently overwrite the existing file with the mod's version
     Overwrite,
 }
+
 impl FromStr for ConflictResolution {
     type Err = SettingsInteractionError;
 
