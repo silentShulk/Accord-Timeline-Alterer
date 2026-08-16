@@ -99,12 +99,21 @@ pub fn install_mod(
                 answered_name.clone(),
                 installed_files,
                 true,
-                ModType::try_from(HashSet::from(mod_data.into_values().collect::<HashSet<_>>()))?,
+                ModType::try_from(mod_data.into_values().collect::<HashSet<_>>())?,
                 Utc::now(),
             );
 
-            data.save_new_mod(&installed_mod)
-                .map_err(|er| InstallationError::Data(er))?;
+            data.save_new_mod(&installed_mod)?;
+
+            if !settings.keep_extracted_folders {
+                if let Err(cleanup_err) = std::fs::remove_dir_all(&mod_folder_path) {
+                    eprintln!(
+                        "Couldn't remove extracted temp folder '{}'. {}",
+                        mod_folder_path.display(),
+                        cleanup_err
+                    );
+                }
+            }
 
             Ok(installed_mod)
         }

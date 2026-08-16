@@ -15,7 +15,7 @@
 //! * **files**: `--files` — print application paths as JSON
 //!
 //! Main function: [`main`]
-
+ 
 mod data;
 mod installation;
 mod misc;
@@ -23,7 +23,7 @@ mod mod_managing;
 mod paths;
 mod settings;
 mod uninstallation;
-
+ 
 use data::Data;
 use installation::install_mod;
 use misc::{/*update_discord_rich_presence, Action,*/ launch_automata};
@@ -31,11 +31,11 @@ use mod_managing::{disable_mod, enable_mod, list_mods};
 use paths::PATHS;
 use settings::Settings;
 use uninstallation::uninstall_mod;
-
+ 
 use std::path::PathBuf;
-
+ 
 use clap::Parser;
-
+ 
 /// CLI argument definitions for ATA
 ///
 /// Exactly one primary action flag should be provided per invocation.
@@ -48,10 +48,10 @@ use clap::Parser;
 )]
 struct Args {
     /// Install a mod from a compressed archive at `PATH` and register it under `NAME`
-    #[arg(long = "install", short='i', num_args = 2..=3, value_names = ["PATH", "NAME", "OVERWRITE"],
+    #[arg(long = "install", short='i', num_args = 2, value_names = ["PATH", "NAME"],
         help="Install a mod from a given path with a specified name")]
     install: Option<Vec<String>>,
-
+ 
     /// Forces any older conflicting mod file to be overwritten during installation
     #[arg(
         long = "overwrite",
@@ -60,7 +60,7 @@ struct Args {
         requires = "install"
     )]
     overwrite: bool,
-
+ 
     /// Uninstall the mod registered under `NAME`, removing its files from the game directory
     #[arg(
         long = "uninstall",
@@ -69,11 +69,11 @@ struct Args {
         help = "Uninstall a mod by its name"
     )]
     uninstall: Option<String>,
-
+ 
     /// Print all installed mods as a JSON array and exit
     #[arg(long = "list-mods", short = 'm', help = "List all installed mods")]
     list_mods: bool,
-
+ 
     /// Move the mod's files back into the game directory so the game loads them
     #[arg(
         long = "enable",
@@ -82,7 +82,7 @@ struct Args {
         help = "Enable a mod by its name"
     )]
     enable: Option<String>,
-
+ 
     /// Move the mod's files to a `.disabled/` subfolder so the game ignores them
     #[arg(
         long = "disable",
@@ -91,12 +91,12 @@ struct Args {
         help = "Disable a mod by its name"
     )]
     disable: Option<String>,
-
+ 
     /// Update the setting identified by `NAME` to `VALUE` and persist the change
     #[arg(long="settings", short='s', value_names = ["NAME", "VALUE"],
         help="Path to the settings file")]
     settings: Option<Vec<String>>,
-
+ 
     /// Print all settings and their current values as JSON
     #[arg(
         long = "list-settings",
@@ -104,23 +104,23 @@ struct Args {
         help = "List all settings and their values"
     )]
     list_settings: bool,
-
+ 
     /// Start NieR:Automata via Steam
     #[arg(long = "automata", short = 'a', help = "Start NieR:Automata")]
     automata: bool,
-
+ 
     /// List all internal application file paths used by ATA
     #[arg(long = "files", short = 'f', help = "List all of ATA's files")]
     files: bool,
 }
-
+ 
 /// Loads persisted state, dispatches to the requested subcommand, and prints the result as JSON
 ///
 /// Exits with a status code of `1` if loading data/settings fails, or `0` if a command fails execution.
 fn main() {
     let args = Args::parse();
     // let mut action = Action::JustOpened;
-
+ 
     let mut data = Data::load_data().unwrap_or_else(|er| {
         eprintln!("Problem loading data: {}", er);
         std::process::exit(1);
@@ -129,11 +129,11 @@ fn main() {
         eprintln!("Problem loading settings: {}", er);
         std::process::exit(1);
     });
-
+ 
     // update_discord_rich_presence(&settings.discord_rich_presence, action).unwrap_or_else(|er| {
     //     eprintln!("Problem using DRP: {}", er);
     // });
-
+ 
     if let Some(params) = args.install {
         let overwrite = args.overwrite;
         let installed_mod = install_mod(
@@ -194,12 +194,12 @@ fn main() {
     } else {
         eprintln!("No command given");
     }
-
+ 
     // update_discord_rich_presence(&settings.discord_rich_presence, action).unwrap_or_else(|er| {
     //     eprintln!("Problem using DRP: {}", er);
     // });
 }
-
+ 
 /// Serializes `value` to a compact JSON string and returns it
 ///
 /// Panics if `value` cannot be serialized — this should never happen for
