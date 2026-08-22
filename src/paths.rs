@@ -4,12 +4,13 @@
 //!
 //! Main static: [`PATHS`]
 
-use dirs::{config_dir, data_local_dir, home_dir};
-
 use std::path::PathBuf;
 use std::sync::LazyLock;
 
+use dirs::{config_dir, data_local_dir, home_dir};
 use serde::Serialize;
+
+
 
 /// Container struct for all paths used by ATA across supported operating systems
 #[derive(Serialize)]

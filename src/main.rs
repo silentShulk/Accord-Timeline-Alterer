@@ -23,18 +23,21 @@ mod mod_managing;
 mod paths;
 mod settings;
 mod uninstallation;
- 
-use data::Data;
-use installation::install_mod;
-use misc::{/*update_discord_rich_presence, Action,*/ launch_automata};
-use mod_managing::{disable_mod, enable_mod, list_mods};
+mod utils;
+
 use paths::PATHS;
+use data::Data;
 use settings::Settings;
 use uninstallation::uninstall_mod;
- 
+use mod_managing::{disable_mod, enable_mod, list_mods};
+use installation::install_mod;
+use misc::{/*update_discord_rich_presence, Action,*/ launch_automata};
+
 use std::path::PathBuf;
- 
+
 use clap::Parser;
+
+
  
 /// CLI argument definitions for ATA
 ///

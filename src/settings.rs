@@ -12,15 +12,16 @@
 //! Main type: [`Settings`]
 
 use crate::paths::PATHS;
+use crate::utils::files::{expand_path, FilesInteractionError};
+use crate::utils::json::{JsonParsingError, load_json, save_json};
 
-use std::{fs::File, str::FromStr};
-use std::env::VarError;
-use std::io::BufReader;
 use std::path::PathBuf;
+use std::str::FromStr;
 
 use thiserror::Error;
 use serde::{Deserialize, Serialize};
-use shellexpand::full;
+
+
 
 /// All user-configurable settings for ATA
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -56,18 +57,12 @@ impl Settings {
     /// * [`Err`] -> The type of error that occurred
     ///
     /// # Errors
-    /// * [`SettingsInteractionError::EnvExpansion`] if a shell variable in a path cannot be resolved
-    /// * [`SettingsInteractionError::SettingsFileAccessing`] if the settings file cannot be opened
-    /// * [`SettingsInteractionError::JsonReading`] if the settings file cannot be parsed as JSON
+    /// * [`SettingsInteractionError::FilesInteraction`] if a shell variable in a path cannot be resolved
+    /// * [`SettingsInteractionError::Json`] if the settings file cannot be opened, read, or parsed
     pub fn load_settings() -> Result<Self, SettingsInteractionError> {
-        let settings_file = File::open(&PATHS.settings_file)?;
-        let reader = BufReader::new(settings_file);
-        let mut contents: Settings = serde_json::from_reader(reader)?;
+        let mut contents: Settings = load_json(&PATHS.settings_file)?;
 
-        for path in [
-            &mut contents.game_path,
-            &mut contents.extracted_folders_location,
-        ] {
+        for path in [&mut contents.game_path, &mut contents.extracted_folders_location] {
             *path = expand_path(&path.to_string_lossy())?;
         }
 
@@ -90,9 +85,8 @@ impl Settings {
     /// # Errors
     /// * [`SettingsInteractionError::InvalidSettingName`] if `setting` does not match any known setting
     /// * [`SettingsInteractionError::InvalidSettingValue`] if `value` cannot be parsed for the target setting
-    /// * [`SettingsInteractionError::EnvExpansion`] if a shell variable in a path value cannot be resolved
-    /// * [`SettingsInteractionError::SettingsFileAccessing`] if the settings file cannot be written
-    /// * [`SettingsInteractionError::JsonReading`] if the updated settings cannot be serialized
+    /// * [`SettingsInteractionError::FilesInteraction`] if a shell variable in a path value cannot be resolved
+    /// * [`SettingsInteractionError::Json`] if the settings file cannot be written
     pub fn update_setting(
         &mut self,
         setting: String,
@@ -116,47 +110,15 @@ impl Settings {
             _ => return Err(SettingsInteractionError::InvalidSettingName(setting)),
         };
 
-        self.update_settings_file()?;
+        save_json(&PATHS.settings_file, &self)?;
 
         Ok(self.clone())
-    }
-
-    /// Overwrites the settings file with the current in-memory state
-    ///
-    /// # Returns
-    /// * [`Ok`] -> `()` on success
-    /// * [`Err`] -> The type of error that occurred
-    ///
-    /// # Errors
-    /// * [`SettingsInteractionError::SettingsFileAccessing`] if the settings file cannot be created or written
-    /// * [`SettingsInteractionError::JsonReading`] if the settings cannot be serialized
-    pub fn update_settings_file(&self) -> Result<(), SettingsInteractionError> {
-        let settings_file = File::create(&PATHS.settings_file)?;
-        serde_json::to_writer_pretty(settings_file, &self)?;
-
-        Ok(())
     }
 }
 
 /// Errors that could occur during interactions with the settings file
 #[derive(Error, Debug)]
 pub enum SettingsInteractionError {
-    /// The config directory cannot be determined (e.g. `$HOME` not set)
-    #[error("Couldn't extract an env found inside the setting file ({path:?}). {0}", path=PATHS.settings_file)]
-    EnvExpansion(#[from] VarError),
-
-    /// The settings.json file in *~/.config/ATA* could not be accessed
-    ///
-    /// It could either be absent, have had its name changed, or have gotten corrupted
-    #[error("Couldn't access settings file ({path:?}). {0}", path=PATHS.settings_file)]
-    SettingsFileAccessing(#[from] std::io::Error),
-
-    /// The contents of settings.json were impossible to read
-    ///
-    /// This could be because the file is corrupted or contains invalid JSON
-    #[error("Unable to read contents of settings file ({path:?}). {0}", path=PATHS.settings_file)]
-    JsonReading(#[from] serde_json::Error),
-
     /// The provided setting name does not correspond to any known setting
     #[error("Unable to parse received setting name ({0}) into and actual setting")]
     InvalidSettingName(String),
@@ -166,6 +128,14 @@ pub enum SettingsInteractionError {
         "Unable to parse received setting value ({0}) into a value acceptable for the given setting"
     )]
     InvalidSettingValue(String),
+
+    /// Reading or writing the settings file as JSON failed
+    #[error("Could'not parse Json for saving/loading settings. {0}")]
+    Json(#[from] JsonParsingError),
+
+    /// A path component of a setting value could not be extracted or expanded
+    #[error("An error occurred while interacting with files. {0}")]
+    FilesInteraction(#[from] FilesInteractionError),
 }
 
 /// The color palette applied to the UI
@@ -241,18 +211,4 @@ impl FromStr for ConflictResolution {
             _ => Err(SettingsInteractionError::InvalidSettingValue(s.to_string())),
         }
     }
-}
-
-/// Expands shell variables and `~` in a path string and returns a [`PathBuf`]
-///
-/// # Arguments
-/// * `value` - Raw path string, potentially containing `~` or `$VAR` references
-///
-/// # Returns
-/// * [`Ok`] -> Expanded [`PathBuf`]
-/// * [`Err`] -> [`SettingsInteractionError::EnvExpansion`] if a variable cannot be resolved
-fn expand_path(value: &str) -> Result<PathBuf, SettingsInteractionError> {
-    let expanded =
-        full(value).map_err(|_| SettingsInteractionError::EnvExpansion(VarError::NotPresent))?;
-    Ok(PathBuf::from(expanded.as_ref()))
 }

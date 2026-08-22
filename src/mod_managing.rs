@@ -12,14 +12,16 @@
 //!
 //! Main functions: [`enable_mod`], [`disable_mod`]
 
+use crate::utils::files::{get_filename_or_err, get_parent_or_err, FilesInteractionError};
 use crate::data::{Data, DataInteractionError, Mod};
 use crate::settings::SortingOrder;
 
 use std::fs::{create_dir_all, rename};
 use std::path::PathBuf;
-use std::ffi::OsStr;
 
 use thiserror::Error;
+
+
 
 /// Moves a disabled mod's files back into the game's asset folder and marks it as enabled
 ///
@@ -37,18 +39,14 @@ use thiserror::Error;
 /// * [`Err`] -> The type of error that occurred
 ///
 /// # Errors
-/// * [`EnablingDisablingError::ModNotFound`] if no mod with `mod_name` exists
-/// * [`EnablingDisablingError::AlreadyEnabled`] if the mod is already enabled
-/// * [`EnablingDisablingError::DotDotPath`] if a stored file path ends with `..`
-/// * [`EnablingDisablingError::ParentlessOrEmptyPath`] if a stored file path has no parent
-/// * [`EnablingDisablingError::Renaming`] if a file could not be moved
-/// * [`EnablingDisablingError::DataSaving`] if the data file could not be updated
-pub fn enable_mod(data: &mut Data, mod_name: String) -> Result<Mod, EnablingDisablingError> {
-    let Some(mod_to_enable) = data.get_mod_by_name(&mod_name) else {
-        return Err(EnablingDisablingError::ModNotFound(mod_name));
-    };
+/// * [`ModManagingError::DataSaving`] if no mod with `mod_name` exists, or the data file could not be updated
+/// * [`ModManagingError::AlreadyEnabled`] if the mod is already enabled
+/// * [`ModManagingError::FilesInteraction`] if a stored file path has no name/parent
+/// * [`ModManagingError::Renaming`] if a file could not be moved
+pub fn enable_mod(data: &mut Data, mod_name: String) -> Result<Mod, ModManagingError> {
+    let mod_to_enable = data.get_mod_by_name(&mod_name)?;
     if mod_to_enable.1.enabled {
-        return Err(EnablingDisablingError::AlreadyEnabled(mod_name));
+        return Err(ModManagingError::AlreadyEnabled(mod_name));
     }
 
     let updated_files = toggle_files_state(mod_to_enable.1)?;
@@ -75,19 +73,15 @@ pub fn enable_mod(data: &mut Data, mod_name: String) -> Result<Mod, EnablingDisa
 /// * [`Err`] -> The type of error that occurred
 ///
 /// # Errors
-/// * [`EnablingDisablingError::ModNotFound`] if no mod with `mod_name` exists
-/// * [`EnablingDisablingError::AlreadyDisabled`] if the mod is already disabled
-/// * [`EnablingDisablingError::DotDotPath`] if a stored file path ends with `..`
-/// * [`EnablingDisablingError::ParentlessOrEmptyPath`] if a stored file path has no parent
-/// * [`EnablingDisablingError::FolderCreation`] if the `.disabled/` directory could not be created
-/// * [`EnablingDisablingError::Renaming`] if a file could not be moved
-/// * [`EnablingDisablingError::DataSaving`] if the data file could not be updated
-pub fn disable_mod(data: &mut Data, mod_name: String) -> Result<Mod, EnablingDisablingError> {
-    let Some(mod_to_disable) = data.get_mod_by_name(&mod_name) else {
-        return Err(EnablingDisablingError::ModNotFound(mod_name));
-    };
+/// * [`ModManagingError::DataSaving`] if no mod with `mod_name` exists, or the data file could not be updated
+/// * [`ModManagingError::AlreadyDisabled`] if the mod is already disabled
+/// * [`ModManagingError::FilesInteraction`] if a stored file path has no name/parent
+/// * [`ModManagingError::FolderCreation`] if the `.disabled/` directory could not be created
+/// * [`ModManagingError::Renaming`] if a file could not be moved
+pub fn disable_mod(data: &mut Data, mod_name: String) -> Result<Mod, ModManagingError> {
+    let mod_to_disable = data.get_mod_by_name(&mod_name)?;
     if !mod_to_disable.1.enabled {
-        return Err(EnablingDisablingError::AlreadyDisabled(mod_name));
+        return Err(ModManagingError::AlreadyDisabled(mod_name));
     }
     let updated_files = toggle_files_state(mod_to_disable.1)?;
 
@@ -98,19 +92,7 @@ pub fn disable_mod(data: &mut Data, mod_name: String) -> Result<Mod, EnablingDis
 
 /// Errors that could occur while enabling or disabling a mod
 #[derive(Error, Debug)]
-pub enum EnablingDisablingError {
-    /// No mod with the given name was found in the data file
-    #[error("No installed mod has the name {0}")]
-    ModNotFound(String),
-
-    /// A stored file path ends with `..`, making it impossible to extract a filename
-    #[error("{0} ends with ..")]
-    DotDotPath(PathBuf),
-
-    /// A stored file path has no parent component (is root or empty)
-    #[error("{0} is either root or an empty path")]
-    ParentlessOrEmptyPath(PathBuf),
-
+pub enum ModManagingError {
     /// The `.disabled/` directory could not be created
     #[error("Couldn't create {0}. {1}")]
     FolderCreation(PathBuf, std::io::Error),
@@ -130,6 +112,10 @@ pub enum EnablingDisablingError {
     /// The requested mod is already disabled
     #[error("\"{0}\" is already disabled")]
     AlreadyDisabled(String),
+
+    /// A path component of a stored file could not be extracted
+    #[error("An error occurred while interacting with files. {0}")]
+    FilesInteraction(#[from] FilesInteractionError),
 }
 
 /// Returns a copy of the mods vector sorted according to the requested [`SortingOrder`]
@@ -162,7 +148,7 @@ pub fn list_mods(sorting_order: &SortingOrder, mods: &[Mod]) -> Vec<Mod> {
 /// # Returns
 /// * [`Ok`] -> List of updated [`PathBuf`]s after moving
 /// * [`Err`] -> [`EnablingDisablingError`] if file moving fails
-fn toggle_files_state(mod_to_enable: Mod) -> Result<Vec<PathBuf>, EnablingDisablingError> {
+fn toggle_files_state(mod_to_enable: Mod) -> Result<Vec<PathBuf>, ModManagingError> {
     if mod_to_enable.enabled {
         disable_files(mod_to_enable.files)
     } else {
@@ -178,7 +164,7 @@ fn toggle_files_state(mod_to_enable: Mod) -> Result<Vec<PathBuf>, EnablingDisabl
 /// # Returns
 /// * [`Ok`] -> List of updated active file paths
 /// * [`Err`] -> [`EnablingDisablingError`] if renaming fails
-fn enable_files(files_to_enable: Vec<PathBuf>) -> Result<Vec<PathBuf>, EnablingDisablingError> {
+fn enable_files(files_to_enable: Vec<PathBuf>) -> Result<Vec<PathBuf>, ModManagingError> {
     let mut updated_files: Vec<PathBuf> = vec![];
 
     for file in files_to_enable {
@@ -201,14 +187,14 @@ fn enable_files(files_to_enable: Vec<PathBuf>) -> Result<Vec<PathBuf>, EnablingD
 /// # Returns
 /// * [`Ok`] -> List of updated disabled file paths
 /// * [`Err`] -> [`EnablingDisablingError`] if creating directories or renaming fails
-fn disable_files(files_to_disable: Vec<PathBuf>) -> Result<Vec<PathBuf>, EnablingDisablingError> {
+fn disable_files(files_to_disable: Vec<PathBuf>) -> Result<Vec<PathBuf>, ModManagingError> {
     let mut updated_files: Vec<PathBuf> = vec![];
 
     for file in files_to_disable {
         let (filename, disabled_folder) = get_toggled_folder(false, &file)?;
 
         create_dir_all(&disabled_folder).map_err(|er| {
-            EnablingDisablingError::FolderCreation(disabled_folder.to_path_buf(), er)
+            ModManagingError::FolderCreation(disabled_folder.to_path_buf(), er)
         })?;
 
         let new_path = disabled_folder.join(filename);
@@ -227,38 +213,20 @@ fn disable_files(files_to_disable: Vec<PathBuf>) -> Result<Vec<PathBuf>, Enablin
 /// * `file` - Original path of the file
 ///
 /// # Returns
-/// * [`Ok`]`((&OsStr, PathBuf))` -> Tuple containing the filename and target directory path
-/// * [`Err`] -> [`EnablingDisablingError`] if path component extraction fails
+/// * [`Ok`]`((&str, PathBuf))` -> Tuple containing the filename and target directory path
+/// * [`Err`] -> [`ModManagingError`] if path component extraction fails
 fn get_toggled_folder<'a>(
     enabled: bool,
     file: &'a PathBuf,
-) -> Result<(&'a OsStr, PathBuf), EnablingDisablingError> {
+) -> Result<(&'a str, PathBuf), ModManagingError> {
+    let filename = get_filename_or_err(file)?;
+    
     if enabled {
-        let Some(filename) = file.file_name() else {
-            return Err(EnablingDisablingError::DotDotPath(file.to_path_buf()));
-        };
-        let Some(parent) = file.parent() else {
-            return Err(EnablingDisablingError::ParentlessOrEmptyPath(
-                file.to_path_buf(),
-            ));
-        };
-        let Some(enabled_folder) = parent.parent() else {
-            return Err(EnablingDisablingError::ParentlessOrEmptyPath(
-                parent.to_path_buf(),
-            ));
-        };
+        let enabled_folder = get_parent_or_err(&get_parent_or_err(file)?)?;
 
         Ok((filename, enabled_folder.to_path_buf()))
     } else {
-        let Some(filename) = file.file_name() else {
-            return Err(EnablingDisablingError::DotDotPath(file.to_path_buf()));
-        };
-        let Some(parent) = file.parent() else {
-            return Err(EnablingDisablingError::ParentlessOrEmptyPath(
-                file.to_path_buf(),
-            ));
-        };
-        let disabled_folder = parent.join(".disabled/");
+        let disabled_folder = get_parent_or_err(file)?.join(".disabled/");
 
         Ok((filename, disabled_folder))
     }

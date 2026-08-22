@@ -14,6 +14,8 @@ use std::path::PathBuf;
 
 use thiserror::Error;
 
+
+
 /// Removes a mod's files from disk and deletes its entry from the data file
 ///
 /// # Arguments
@@ -25,19 +27,16 @@ use thiserror::Error;
 /// * [`Err`] -> The type of error that occurred
 ///
 /// # Errors
-/// * [`UninstallationError::ModNotFound`] if no mod with `mod_name` exists in the data file
+/// * [`UninstallationError::DataSaving`] if no mod with `mod_name` exists, or the data file could not be updated
 /// * [`UninstallationError::FileDeletion`] if one of the mod's files could not be removed from disk
-/// * [`UninstallationError::DataSaving`] if the data file could not be updated after deletion
 pub fn uninstall_mod(config: &mut Data, mod_name: String) -> Result<Mod, UninstallationError> {
-    let Some(mod_to_uninstall) = config.get_mod_by_name(&mod_name) else {
-        return Err(UninstallationError::ModNotFound(mod_name));
-    };
+    let mod_to_uninstall = config.get_mod_by_name(&mod_name)?;
 
     remove_mod_files(&mod_to_uninstall.1.files)?;
 
     config
         .remove_mod(mod_to_uninstall.0)
-        .map_err(|e| UninstallationError::DataSaving(e))?;
+        .map_err(UninstallationError::DataSaving)?;
 
     Ok(mod_to_uninstall.1)
 }
@@ -45,14 +44,6 @@ pub fn uninstall_mod(config: &mut Data, mod_name: String) -> Result<Mod, Uninsta
 /// Errors that could occur while uninstalling a mod
 #[derive(Error, Debug)]
 pub enum UninstallationError {
-    /// A file belonging to the mod could not be accessed or deleted
-    #[error("Encountered an error while trying to access a mod file. {0}")]
-    FileAccessing(#[from] std::io::Error),
-
-    /// No mod with the requested name was found in the data file
-    #[error("No mod named '{0}' found")]
-    ModNotFound(String),
-
     /// A specific file could not be removed from the game directory
     #[error("Couldn't remove {0} from the game's directory. {1}")]
     FileDeletion(PathBuf, std::io::Error),

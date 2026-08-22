@@ -13,19 +13,19 @@
 //! Main type: [`Data`]
 
 use crate::paths::PATHS;
+use crate::utils::files::{expand_path, FilesInteractionError};
+use crate::utils::json::{JsonParsingError, load_json, save_json};
 
-use std::fs::File;
-use std::env::VarError;
-use std::collections::{HashMap, HashSet};
-use std::io::BufReader;
 use std::path::PathBuf;
+use std::collections::{HashMap, HashSet};
 use std::fmt::{self};
 
 use thiserror::Error;
 use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
-use shellexpand::full;
 use strum::{EnumIter, IntoEnumIterator};
+
+
 
 /// Holds the runtime state of ATA: the full list of installed mods
 #[derive(Serialize, Deserialize)]
@@ -44,24 +44,17 @@ impl Data {
     /// * [`Err`] -> The type of error that occurred
     ///
     /// # Errors
-    /// * [`DataInteractionError::HomeEnvNotFound`] if the data directory cannot be determined
-    /// * [`DataInteractionError::DataFileAccessing`] if the data file cannot be opened
-    /// * [`DataInteractionError::JsonReading`] if the data file cannot be parsed as JSON
+    /// * [`DataInteractionError::Json`] if the data file cannot be opened, read, or parsed as JSON
+    /// * [`DataInteractionError::FilesInteraction`] if a stored file path cannot be shell-expanded
     pub fn load_data() -> Result<Self, DataInteractionError> {
-        let data_file = File::open(&PATHS.data_file)?;
-        let reader = BufReader::new(data_file);
-        let mut contents: Data = serde_json::from_reader(reader)?;
+        let mut contents : Data= load_json(&PATHS.data_file)?;
 
-        for m in &mut contents.mods {
-            m.files = m
-                .files
-                .iter()
-                .map(|f| {
-                    let s = f.to_string_lossy().into_owned();
-                    PathBuf::from(full(&s).map(|e| e.into_owned()).unwrap_or(s))
-                })
-                .collect();
-        }
+        contents.mods.iter_mut().try_for_each(|m| -> Result<(), FilesInteractionError> {
+            m.files = m.files.iter()
+                .map(|f| expand_path(&f.to_string_lossy()))
+                .collect::<Result<_, _>>()?;
+            Ok(())
+        })?;
 
         Ok(contents)
     }
@@ -82,6 +75,11 @@ impl Data {
     ///
     /// # Arguments
     /// * `conflicts_list` - A map where the key is the conflicting file path and the value is the name of the existing mod owning it
+    ///
+    /// # Panics
+    /// Panics if `conflicts_list` references a mod name not present in [`Data::mods`].
+    /// Callers must build `conflicts_list` from this same [`Data`] instance (see [`crate::installation::check_for_conflicts`])
+    /// so the invariant always holds in practice.
     pub fn remove_conflicts(&mut self, conflicts_list: &HashMap<PathBuf, String>) {
         for conflict in conflicts_list {
             let conflicting_mod_idx = self.get_mod_by_name(conflict.1.as_ref()).unwrap().0;
@@ -102,12 +100,10 @@ impl Data {
     /// * [`Err`] -> The type of error that occurred
     ///
     /// # Errors
-    /// * [`DataInteractionError::HomeEnvNotFound`] if the data directory cannot be determined
-    /// * [`DataInteractionError::DataFileAccessing`] if the data file cannot be written
-    /// * [`DataInteractionError::JsonReading`] if the data cannot be serialized
+    /// * [`DataInteractionError::Json`] if the data file cannot be written or serialized
     pub fn save_new_mod(&mut self, new_mod: &Mod) -> Result<(), DataInteractionError> {
         self.mods.push(new_mod.clone());
-        self.update_data_file()
+        Ok(save_json(&PATHS.data_file, &self)?)
     }
 
     /// Removes the mod at `index_to_remove` from the in-memory list and writes the data file
@@ -120,12 +116,10 @@ impl Data {
     /// * [`Err`] -> The type of error that occurred
     ///
     /// # Errors
-    /// * [`DataInteractionError::HomeEnvNotFound`] if the data directory cannot be determined
-    /// * [`DataInteractionError::DataFileAccessing`] if the data file cannot be written
-    /// * [`DataInteractionError::JsonReading`] if the data cannot be serialized
+    /// * [`DataInteractionError::Json`] if the data file cannot be written or serialized
     pub fn remove_mod(&mut self, index_to_remove: usize) -> Result<(), DataInteractionError> {
         self.mods.remove(index_to_remove);
-        self.update_data_file()
+        Ok(save_json(&PATHS.data_file, &self)?)
     }
 
     /// Toggles the enabled flag of the mod at `index`, replaces its file list, then writes the data file
@@ -139,9 +133,7 @@ impl Data {
     /// * [`Err`] -> The type of error that occurred
     ///
     /// # Errors
-    /// * [`DataInteractionError::HomeEnvNotFound`] if the data directory cannot be determined
-    /// * [`DataInteractionError::DataFileAccessing`] if the data file cannot be written
-    /// * [`DataInteractionError::JsonReading`] if the data cannot be serialized
+    /// * [`DataInteractionError::Json`] if the data file cannot be written or serialized
     pub fn switch_mod_state(
         &mut self,
         index: usize,
@@ -149,65 +141,30 @@ impl Data {
     ) -> Result<(), DataInteractionError> {
         self.mods[index].files = new_files;
         self.mods[index].enabled = !self.mods[index].enabled;
-        self.update_data_file()
+        Ok(save_json(&PATHS.data_file, &self)?)
     }
 
-    /// Returns the index and a clone of the mod whose name matches `name`
+    /// Finds the mod whose name matches `name`
     ///
     /// # Arguments
     /// * `name` - The name to search for
     ///
     /// # Returns
-    /// * [`Some`]`(usize, Mod)` — index in [`Data::mods`] and a clone of the matching mod
-    /// * [`None`] if no mod with that name exists
-    pub fn get_mod_by_name(&self, name: &str) -> Option<(usize, Mod)> {
+    /// * [`Ok`]`((usize, Mod))` — index in [`Data::mods`] and a clone of the matching mod
+    /// * [`Err`] -> [`DataInteractionError::ModNotFound`] if no mod with that name exists
+    pub fn get_mod_by_name(&self, name: &str) -> Result<(usize, Mod), DataInteractionError> {
         self.mods
             .iter()
             .enumerate()
             .find(|(_, m)| m.name == name)
             .map(|(i, m)| (i, m.clone()))
-    }
-
-    /// Overwrites the data file with the current in-memory state
-    ///
-    /// # Returns
-    /// * [`Ok`] -> `()` on success
-    /// * [`Err`] -> The type of error that occurred
-    ///
-    /// # Errors
-    /// * [`DataInteractionError::HomeEnvNotFound`] if the data directory cannot be determined
-    /// * [`DataInteractionError::DataFileAccessing`] if the data file cannot be created or written
-    /// * [`DataInteractionError::JsonReading`] if the data cannot be serialized
-    fn update_data_file(&self) -> Result<(), DataInteractionError> {
-        let data_file = File::create(&PATHS.data_file)?;
-        serde_json::to_writer_pretty(data_file, &self)?;
-
-        Ok(())
+            .ok_or_else(|| DataInteractionError::ModNotFound(name.to_string()))
     }
 }
 
 /// Errors that could occur during interactions with the saved data
 #[derive(Error, Debug)]
 pub enum DataInteractionError {
-    /// The data directory cannot be determined
-    ///
-    /// Occurs when `dirs::data_local_dir()` returns `None`, which should
-    /// never happen on a working Linux installation
-    #[error("The $HOME env isn't present in your system (wtf). {0}")]
-    HomeEnvNotFound(#[from] VarError),
-
-    /// The data.json file in *~/.local/share/ATA* could not be accessed
-    ///
-    /// It could either be absent, have had its name changed, or have gotten corrupted
-    #[error("Couldn't access data file ({path:?}). {0}", path=&PATHS.data_file)]
-    DataFileAccessing(#[from] std::io::Error),
-
-    /// The contents of data.json were impossible to read
-    ///
-    /// This could be because the file is corrupted or contains invalid JSON
-    #[error("Unable to read contents of data file ({path:?}). {0}", path=&PATHS.data_file)]
-    JsonReading(#[from] serde_json::Error),
-
     /// The file extension does not correspond to any known mod type recognized by ATA
     #[error("'{0}' is not an extension of a know mod type")]
     InvalidModTypeExtension(String),
@@ -215,6 +172,18 @@ pub enum DataInteractionError {
     /// The mod folder contains files that prevent inferring a clear mod type
     #[error("Couldn't not infer mod type from mod files")]
     UnclearModType,
+
+    /// Reading or writing the data file as JSON failed
+    #[error("Could'not parse Json for saving/loading data. {0}")]
+    Json(#[from] JsonParsingError),
+
+    /// A path component of a stored file could not be extracted or expanded
+    #[error("An error occurred while interacting with files. {0}")]
+    FilesInteraction(#[from] FilesInteractionError),
+
+    /// No mod with the given name was found in the data file
+    #[error("No installed mod has the name {0}")]
+    ModNotFound(String),
 }
 
 /// Everything ATA needs to track about an installed mod
