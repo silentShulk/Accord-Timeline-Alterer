@@ -52,7 +52,7 @@ JSON
 # settings.json
 cat << 'JSON' > "$settings/settings.json"
 {
-  "style": "SilentShulk",
+  "style": "ShellUI",
   "palette": "Automata",
   "sortingOrder": "ModType",
   "filesConflictResolution": "Warn",

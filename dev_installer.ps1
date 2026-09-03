@@ -60,7 +60,7 @@ $escapedHome = $HOME -replace '\\', '\\\\'
  
 [System.IO.File]::WriteAllText("$settings\settings.json", @"
 {
-  "style": "SilentShulk",
+  "style": "ShellUI",
   "palette": "Automata",
   "sortingOrder": "ModType",
   "filesConflictResolution": "Warn",
