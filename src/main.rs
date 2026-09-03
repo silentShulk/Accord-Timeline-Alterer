@@ -15,15 +15,12 @@
 //! * **files**: `--files` — print application paths as JSON
 //!
 //! Main function: [`main`]
- 
-mod data;
-mod installation;
-mod misc;
-mod mod_managing;
-mod paths;
-mod settings;
-mod uninstallation;
+
+mod saved_data;
+mod features;
 mod utils;
+use saved_data::{data, settings, paths};
+use features::{installation, uninstallation, mod_managing, misc};
 
 use paths::PATHS;
 use data::Data;
