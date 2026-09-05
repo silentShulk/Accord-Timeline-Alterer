@@ -29,12 +29,12 @@ use strum::{EnumIter, IntoEnumIterator};
 
 /// Holds the runtime state of ATA: the full list of installed mods
 #[derive(Serialize, Deserialize)]
-pub struct Data {
+pub struct Mods {
     /// List of all mods currently tracked by ATA
     pub mods: Vec<Mod>,
 }
 
-impl Data {
+impl Mods {
     /// Creates a [`Data`] instance from the data file
     ///
     /// Also expands any shell variables or `~` present in stored file paths.
@@ -47,7 +47,7 @@ impl Data {
     /// * [`DataInteractionError::Json`] if the data file cannot be opened, read, or parsed as JSON
     /// * [`DataInteractionError::FilesInteraction`] if a stored file path cannot be shell-expanded
     pub fn load_data() -> Result<Self, DataInteractionError> {
-        let mut contents : Data= load_json(&PATHS.data_file)?;
+        let mut contents : Mods= load_json(&PATHS.data_file)?;
 
         contents.mods.iter_mut().try_for_each(|m| -> Result<(), FilesInteractionError> {
             m.files = m.files.iter()

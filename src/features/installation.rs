@@ -9,7 +9,7 @@
 //! Main function: [`install_mod`]
 
 use crate::utils::files::{get_extension_or_err, get_filename_or_err, get_filestem_or_err, get_parent_or_err, FilesInteractionError};
-use crate::data::{Data, DataInteractionError, Mod, ModType};
+use crate::mods::{Mods, DataInteractionError, Mod, ModType};
 use crate::settings::{ConflictResolution, Settings};
 
 use std::fs::{File, copy, create_dir_all};
@@ -56,7 +56,7 @@ pub fn install_mod(
     answered_name: String,
     forced_overwrite: bool,
     settings: &Settings,
-    data: &mut Data,
+    data: &mut Mods,
 ) -> Result<Mod, InstallationError> {
     if !compressed_mod_folder_path.exists() {
         return Err(InstallationError::ModArchiveNotFound(
@@ -352,7 +352,7 @@ pub fn get_mod_data(
 /// * [`InstallationError::FilesInteraction`] if a filename (installed or incoming) cannot be extracted
 fn check_for_conflicts<'a>(
     mod_files: Vec<&PathBuf>,
-    data: &'a Data,
+    data: &'a Mods,
 ) -> Result<HashMap<PathBuf, String>, InstallationError> {
     let mut installed: HashMap<&str, &'a String> = HashMap::new();
 

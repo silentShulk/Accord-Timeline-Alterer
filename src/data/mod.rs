@@ -1,3 +1,3 @@
-pub mod data;
+pub mod mods;
 pub mod settings;
 pub mod paths;

@@ -13,7 +13,7 @@
 //! Main functions: [`enable_mod`], [`disable_mod`]
 
 use crate::utils::files::{get_filename_or_err, get_parent_or_err, FilesInteractionError};
-use crate::data::{Data, DataInteractionError, Mod};
+use crate::mods::{Mods, DataInteractionError, Mod};
 use crate::settings::SortingOrder;
 
 use std::fs::{create_dir_all, rename};
@@ -43,7 +43,7 @@ use thiserror::Error;
 /// * [`ModManagingError::AlreadyEnabled`] if the mod is already enabled
 /// * [`ModManagingError::FilesInteraction`] if a stored file path has no name/parent
 /// * [`ModManagingError::Renaming`] if a file could not be moved
-pub fn enable_mod(data: &mut Data, mod_name: String) -> Result<Mod, ModManagingError> {
+pub fn enable_mod(data: &mut Mods, mod_name: String) -> Result<Mod, ModManagingError> {
     let mod_to_enable = data.get_mod_by_name(&mod_name)?;
     if mod_to_enable.1.enabled {
         return Err(ModManagingError::AlreadyEnabled(mod_name));
@@ -78,7 +78,7 @@ pub fn enable_mod(data: &mut Data, mod_name: String) -> Result<Mod, ModManagingE
 /// * [`ModManagingError::FilesInteraction`] if a stored file path has no name/parent
 /// * [`ModManagingError::FolderCreation`] if the `.disabled/` directory could not be created
 /// * [`ModManagingError::Renaming`] if a file could not be moved
-pub fn disable_mod(data: &mut Data, mod_name: String) -> Result<Mod, ModManagingError> {
+pub fn disable_mod(data: &mut Mods, mod_name: String) -> Result<Mod, ModManagingError> {
     let mod_to_disable = data.get_mod_by_name(&mod_name)?;
     if !mod_to_disable.1.enabled {
         return Err(ModManagingError::AlreadyDisabled(mod_name));

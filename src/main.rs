@@ -16,14 +16,14 @@
 //!
 //! Main function: [`main`]
 
-mod saved_data;
+mod data;
 mod features;
 mod utils;
-use saved_data::{data, settings, paths};
+use data::{mods, settings, paths};
 use features::{installation, uninstallation, mod_managing, misc};
 
 use paths::PATHS;
-use data::Data;
+use mods::Mods;
 use settings::Settings;
 use uninstallation::uninstall_mod;
 use mod_managing::{disable_mod, enable_mod, list_mods};
@@ -121,7 +121,7 @@ fn main() {
     let args = Args::parse();
     // let mut action = Action::JustOpened;
  
-    let mut data = Data::load_data().unwrap_or_else(|er| {
+    let mut data = Mods::load_data().unwrap_or_else(|er| {
         eprintln!("Problem loading data: {}", er);
         std::process::exit(1);
     });
