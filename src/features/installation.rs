@@ -74,10 +74,11 @@ pub fn install_mod(
 
     let conflicting_files = check_for_conflicts(mod_data.keys().collect::<Vec<_>>(), data)?;
     let conflicts_present = !conflicting_files.is_empty();
+    let should_warn = get_warning_necessity(settings.files_conflict_resolution, forced_overwrite);
 
     let should_install: bool = match (
         conflicts_present,
-        get_warning_necessity(settings.files_conflict_resolution, forced_overwrite),
+        should_warn
     ) {
         (true, true) => false,
         (true, false) => {
