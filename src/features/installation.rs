@@ -72,7 +72,7 @@ pub fn install_mod(
     let mod_data = get_mod_data(&mut mod_folder_path)?
         .ok_or(InstallationError::ModlessFolder(mod_folder_path.clone()))?;
 
-    let conflicting_files = check_for_conflicts(mod_data.keys().collect::<Vec<_>>(), data)?;
+    let conflicting_files = check_for_conflicts(HashSet::from(mod_data.keys()), data)?;
     let conflicts_present = !conflicting_files.is_empty();
     let should_warn = get_warning_necessity(settings.files_conflict_resolution, forced_overwrite);
 
@@ -352,7 +352,7 @@ pub fn get_mod_data(
 /// # Errors
 /// * [`InstallationError::FilesInteraction`] if a filename (installed or incoming) cannot be extracted
 fn check_for_conflicts<'a>(
-    mod_files: Vec<&PathBuf>,
+    mod_files: HashSet<&PathBuf>,
     data: &'a Mods,
 ) -> Result<HashMap<PathBuf, String>, InstallationError> {
     let mut installed: HashMap<&str, &'a String> = HashMap::new();
