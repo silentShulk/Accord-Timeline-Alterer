@@ -379,6 +379,18 @@ fn get_warning_necessity(warn_setting: ConflictResolution, overwrite_flag: bool)
     }
 }
 
+/// Based on whether there are conflicts present and if warning is necessary,
+/// decides if the installation process should continue
+///
+/// # Arguments
+/// * `data` - Mutable reference to the current [`Mods`] state, used to remove conflicting entries when needed
+/// * `conflicting_files` - Map of conflicting file paths to the name of the mod they belong to
+/// * `conflicts_present` - Whether any conflicts were detected
+/// * `should_warn` - Whether the user should be warned before overwriting conflicting files
+///
+/// # Returns
+/// * `true` if installation should proceed
+/// * `false` if installation should be blocked pending user confirmation
 fn should_install(data: &mut Mods, conflicting_files: &HashMap<PathBuf, String>, conflicts_present: bool, should_warn: bool) -> bool {
     let should_install: bool = match (
         conflicts_present,
