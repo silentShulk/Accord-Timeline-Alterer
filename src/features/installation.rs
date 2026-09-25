@@ -76,19 +76,7 @@ pub fn install_mod(
     let conflicts_present = !conflicting_files.is_empty();
     let should_warn = get_warning_necessity(settings.files_conflict_resolution, forced_overwrite);
 
-    let should_install: bool = match (
-        conflicts_present,
-        should_warn
-    ) {
-        (true, true) => false,
-        (true, false) => {
-            data.remove_conflicts(&conflicting_files);
-            true
-        }
-        (false, _) => true,
-    };
-
-    match should_install {
+    match should_install(data, &conflicting_files, conflicts_present, should_warn) {
         false => Err(InstallationError::FileConflict(conflicting_files)),
         true => {
             let installed_files = install(
@@ -389,6 +377,21 @@ fn get_warning_necessity(warn_setting: ConflictResolution, overwrite_flag: bool)
         (ConflictResolution::Warn, true) => false,
         (ConflictResolution::Overwrite, _) => false,
     }
+}
+
+fn should_install(data: &mut Mods, conflicting_files: &HashMap<PathBuf, String>, conflicts_present: bool, should_warn: bool) -> bool {
+    let should_install: bool = match (
+        conflicts_present,
+        should_warn
+    ) {
+        (true, true) => false,
+        (true, false) => {
+            data.remove_conflicts(conflicting_files);
+            true
+        }
+        (false, _) => true,
+    };
+    should_install
 }
 
 /// Copies mod files into their designated game folders according to their mod type
