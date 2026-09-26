@@ -1,75 +1,73 @@
 # ATA dev installer — Windows
-# Iterations over arrays of paths are done to chekc if thigs exist
-# Without it the stderr would polluted with warnings 
+#
+# Prepares everything ATA needs to be developed/tested:
+#   - ATA's folders, a default data.json and settings.json (only if missing)
+#   - the latest built ATA executable (if `cargo build --release` was run)
+#   - a fake game folder when NieR:Automata isn't installed
+#
+# Usage: .\dev_installer.ps1 [-Reset]
+#   -Reset  also wipes data.json, settings.json and the mod folders of the game
+#           (DESTRUCTIVE: installed mods are forgotten and their files deleted)
+#
+# The game folder can be overridden with the ATA_GAME_PATH environment variable.
 
-# Remove folders for mod files (will be recreated by ATA if necessary)
-# This doesn't affect a working installation of the game
-$modPaths = @(
-    "C:/Program Files (x86)/Steam/steamapps/common/NieRAutomata/data/pl",
-    "C:/Program Files (x86)/Steam/steamapps/common/NieRAutomata/data/wp",
-    "C:/Program Files (x86)/Steam/steamapps/common/NieRAutomata/data/bg",
-    "C:/Program Files (x86)/Steam/steamapps/common/NieRAutomata/data/wax"
-)
+param([switch]$Reset)
 
-foreach ($path in $modPaths) {
-    if (Test-Path $path) {
-        rm -r -Force $path
+$ErrorActionPreference = "Stop"
+
+$game = if ($env:ATA_GAME_PATH) { $env:ATA_GAME_PATH } else { "C:\Program Files (x86)\Steam\steamapps\common\NieRAutomata" }
+
+# Paths used by ATA (must match src/data/paths.rs)
+$exeDir       = "$env:LOCALAPPDATA\Programs\ATA"
+$dataDir      = "$env:LOCALAPPDATA\ATA"
+$settingsDir  = "$env:APPDATA\ATA"
+$dataFile     = "$dataDir\data.json"
+$settingsFile = "$settingsDir\settings.json"
+
+if ($Reset) {
+    Write-Host "Resetting ATA data and the game's mod folders"
+    $toRemove = @(
+        $dataFile, $settingsFile,
+        "$game\data\pl", "$game\data\wp", "$game\data\bg", "$game\data\misctex",
+        "$game\wax\mods", "$game\.ata-backup"
+    )
+    foreach ($path in $toRemove) {
+        if (Test-Path $path) { Remove-Item -Recurse -Force $path }
     }
 }
 
+# ATA's folders, and the folders needed to test mod installation even without the game installed
+foreach ($dir in $exeDir, "$dataDir\UIs", "$dataDir\Apps", $settingsDir, "$game\data", "$game\wax\mods") {
+    New-Item -ItemType Directory -Force -Path $dir | Out-Null
+}
+if (-not (Test-Path "$game\NieRAutomata.exe")) {
+    Write-Host "NieR:Automata not found in $game, creating a fake game executable for testing"
+    New-Item -ItemType File -Path "$game\NieRAutomata.exe" | Out-Null
+}
 
+# Latest release build of the backend
+$built = Join-Path $PSScriptRoot "target\release\ATA.exe"
+if (Test-Path $built) { Copy-Item -Force $built "$exeDir\ATA.exe" }
 
-# Create folders strictly necessary for development testing
-$required_mod_paths = "C:/Program Files (x86)/Steam/steamapps/common/NieRAutomata/data", "C:/Program Files (x86)/Steam/steamapps/common/NieRAutomata/wax/mods"
-foreach ($rmp in $required_mod_paths) {
-    if (-not(Test-Path -Path $rmp)) {
-        mkdir $rmp -Force | Out-Null
+# Default data and settings, never overwriting existing ones
+$utf8 = [System.Text.UTF8Encoding]::new($false)
+
+if (-not (Test-Path $dataFile)) {
+    [System.IO.File]::WriteAllText($dataFile, "{`n  `"mods`": []`n}`n", $utf8)
+}
+
+if (-not (Test-Path $settingsFile)) {
+    $settings = [ordered]@{
+        style                    = "ShellUI"
+        palette                  = "Automata"
+        sortingOrder             = "ModType"
+        filesConflictResolution  = "Warn"
+        keepExtractedFolders     = $false
+        extractedFoldersLocation = ""
+        gamePath                 = $game
+        discordRichPresence      = "Altering NieRAutomata's timelines"
     }
+    [System.IO.File]::WriteAllText($settingsFile, ($settings | ConvertTo-Json), $utf8)
 }
-
-
-
-# Directories used by ATA
-$exe      = "$env:LOCALAPPDATA\Programs\ATA"
-$data     = "$env:LOCALAPPDATA\ATA"
-$settings = "$env:APPDATA\ATA"
-$uis      = "$env:LOCALAPPDATA\ATA\UIs"
-$apps     = "$env:LOCALAPPDATA\ATA\Apps"
-
-$ata_dirs = $exe, $data, $settings, $uis, $apps
-foreach ($dir in $ata_dirs) {
-    if (-not(Test-Path -Path $dir)) {
-        mkdir $dir -Force | Out-Null
-    }
-}
-
-
-
-# Insert default content inside data and settings
-
-# data.json
-[System.IO.File]::WriteAllText("$data\data.json", @'
-{
-    "mods": []
-}
-'@, [System.Text.UTF8Encoding]::new($false))
- 
-# settings.json
-# Pre-escape the $HOME path so it retains double backslashes in the JSON
-$escapedHome = $HOME -replace '\\', '\\\\'
- 
-[System.IO.File]::WriteAllText("$settings\settings.json", @"
-{
-  "style": "ShellUI",
-  "palette": "Automata",
-  "sortingOrder": "ModType",
-  "filesConflictResolution": "Warn",
-  "keepExtractedFolders": true,
-  "extractedFoldersLocation": "${escapedHome}\\\\Downloads",
-  "gamePath": "C:\\\\Program Files (x86)\\\\Steam\\\\steamapps\\\\common\\\\NieRAutomata",
-  "discordRichPresence": "Altering NieRAutomata's timelines"
-}
-"@, [System.Text.UTF8Encoding]::new($false))
-
 
 Write-Host "ATA dev environment ready." -ForegroundColor Green

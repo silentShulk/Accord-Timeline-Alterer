@@ -1,22 +1,51 @@
 [package]
 name = "ATA"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
+description = "Accord's Timeline Alterer, the cross-platform NieR:Automata mod manager"
+
+# The backend is both a library (used directly by Rust GUIs such as ShellUI and
+# by the Launcher) and a CLI binary (used by any other GUI, e.g. Martian-Dunes).
+[lib]
+name = "ata"
+path = "src/lib.rs"
+
+[[bin]]
+name = "ATA"
+path = "src/main.rs"
+required-features = ["cli"]
+
+[features]
+default = ["cli", "archives"]
+# Command line interface (the `ATA` executable)
+cli = ["dep:clap", "archives"]
+# Mod installation from .zip/.7z/.rar archives.
+# Consumers that only need paths/settings/data (e.g. the Launcher) can disable it
+# with `default-features = false` and avoid compiling the archive libraries.
+archives = ["dep:zip", "dep:sevenz-rust", "dep:unrar", "dep:walkdir"]
+# Derives `specta::Type` on every public data type, so Tauri GUIs can generate
+# TypeScript bindings instead of hand-writing (and desyncing) them
+specta = ["dep:specta"]
 
 [dependencies]
-chrono = {version="0.4.44", features=["serde"]}
-clap = { version="4.5.54", features=["derive"] }
-clearscreen = "4.0.3"
+chrono = { version = "0.4.44", features = ["serde"] }
 dirs = "6.0.0"
-discord-rich-presence = "1.1.0"
-inquire = "0.9.4"
-serde = { version="1.0.228", features=["derive"] }
+serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.150"
-sevenz-rust = "0.6.1"
 shellexpand = "3.1.2"
-strum = { version="0.28.0", features=["derive"] }
-target = "2.1.0"
 thiserror = "2.0.18"
-unrar = "0.5.8"
-walkdir = "2.5.0"
-zip = "8.6.0"
+
+clap = { version = "4.5.54", features = ["derive"], optional = true }
+sevenz-rust = { version = "0.6.1", optional = true }
+specta = { version = "=2.0.0-rc.20", features = ["derive", "chrono"], optional = true }
+unrar = { version = "0.5.8", optional = true }
+walkdir = { version = "2.5.0", optional = true }
+zip = { version = "8.6.0", optional = true }
+
+# The CLI binary is embedded inside the Launcher executable, so size matters
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+strip = true
+panic = "abort"

@@ -1,180 +1,143 @@
-//! **data** is a module that declares types and functions
+//! **mods** is a module that declares types and functions
 //! for interacting with saved mod data
 //!
 //! In the case of ATA the saved data is stored inside a
-//! "data.json" file
+//! "data.json" file (see [`crate::Paths::data_file`])
 //!
 //! This includes:
-//! * **loading**: Reading the data file into a [`Data`] struct
+//! * **loading**: Reading the data file into a [`Mods`] struct
 //! * **saving**: Writing the current in-memory state back to the data file
-//! * **querying**: Looking up mods by name or checking for name conflicts
-//! * **mutating**: Adding, removing, and toggling the enabled state of mods
+//! * **querying**: Looking up mods by name or by the files they own
 //!
-//! Main type: [`Data`]
+//! Main types: [`Mods`], [`Mod`]
 
-use crate::paths::PATHS;
-use crate::utils::files::{expand_path, FilesInteractionError};
+use crate::data::mod_type::ModType;
+use crate::data::paths::PATHS;
+use crate::utils::files::{DISABLED_DIR_NAME, FilesInteractionError, expand_path};
 use crate::utils::json::{JsonParsingError, load_json, save_json};
 
-use std::path::PathBuf;
-use std::collections::{HashMap, HashSet};
-use std::fmt::{self};
+use std::ffi::OsStr;
+use std::path::{Path, PathBuf};
 
-use thiserror::Error;
-use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
-use strum::{EnumIter, IntoEnumIterator};
-
-
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
 /// Holds the runtime state of ATA: the full list of installed mods
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct Mods {
-    /// List of all mods currently tracked by ATA
+    /// List of all mods currently tracked by ATA, in installation order
     pub mods: Vec<Mod>,
+
+    /// File the data was loaded from, and will be saved to
+    #[serde(skip)]
+    source: Option<PathBuf>,
 }
 
 impl Mods {
-    /// Creates a [`Data`] instance from the data file
+    /// Creates a [`Mods`] instance from the data file (see [`crate::Paths::data_file`])
     ///
+    /// # Errors
+    /// See [`Mods::load_from`]
+    pub fn load_data() -> Result<Self, DataInteractionError> {
+        Self::load_from(&PATHS.data_file)
+    }
+
+    /// Creates a [`Mods`] instance from the given data file
+    ///
+    /// A missing data file simply means that no mod was installed yet: it is
+    /// treated as an empty list and will be created on the first save.
     /// Also expands any shell variables or `~` present in stored file paths.
     ///
     /// # Returns
-    /// * [`Ok`] -> A [`Data`] instance populated from the data file
+    /// * [`Ok`] -> A [`Mods`] instance populated from the data file
     /// * [`Err`] -> The type of error that occurred
     ///
     /// # Errors
-    /// * [`DataInteractionError::Json`] if the data file cannot be opened, read, or parsed as JSON
+    /// * [`DataInteractionError::Json`] if the data file cannot be read, or parsed as JSON
     /// * [`DataInteractionError::FilesInteraction`] if a stored file path cannot be shell-expanded
-    pub fn load_data() -> Result<Self, DataInteractionError> {
-        let mut contents : Mods= load_json(&PATHS.data_file)?;
+    pub fn load_from(data_file: &Path) -> Result<Self, DataInteractionError> {
+        let mut data: Mods = match load_json(data_file) {
+            Ok(data) => data,
+            Err(err) if err.is_not_found() => Mods::default(),
+            Err(err) => return Err(err.into()),
+        };
 
-        contents.mods.iter_mut().try_for_each(|m| -> Result<(), FilesInteractionError> {
-            m.files = m.files.iter()
-                .map(|f| expand_path(&f.to_string_lossy()))
-                .collect::<Result<_, _>>()?;
-            Ok(())
-        })?;
+        for m in &mut data.mods {
+            for f in &mut m.files {
+                *f = expand_path(&f.to_string_lossy())?;
+            }
+        }
+        data.source = Some(data_file.to_path_buf());
 
-        Ok(contents)
+        Ok(data)
+    }
+
+    /// The file this data is saved to
+    pub fn file(&self) -> &Path {
+        self.source.as_deref().unwrap_or(&PATHS.data_file)
+    }
+
+    /// Writes the current state to [`Mods::file`]
+    ///
+    /// # Errors
+    /// * [`DataInteractionError::Json`] if the data file cannot be written or serialized
+    pub fn save(&self) -> Result<(), DataInteractionError> {
+        Ok(save_json(self.file(), self)?)
     }
 
     /// Checks whether a mod with the given name is already tracked
     ///
-    /// # Arguments
-    /// * `name` - The candidate mod name to check
-    ///
-    /// # Returns
-    /// * `true` if a mod with `name` already exists
-    /// * `false` if the name is free to use
+    /// Names are compared case-insensitively: texture mods are installed in a folder
+    /// named after the mod, and `Foo` and `foo` are the same folder on Windows.
     pub fn name_exists(&self, name: &str) -> bool {
-        self.mods.iter().any(|m| m.name == name)
+        self.mods.iter().any(|m| m.name.eq_ignore_ascii_case(name.trim()))
     }
 
-    /// Removes conflicting files from currently tracked mods by discarding them from the older mod's file list
+    /// Finds the index of the mod whose name matches `name`
     ///
-    /// # Arguments
-    /// * `conflicts_list` - A map where the key is the conflicting file path and the value is the name of the existing mod owning it
-    ///
-    /// # Panics
-    /// Panics if `conflicts_list` references a mod name not present in [`Data::mods`].
-    /// Callers must build `conflicts_list` from this same [`Data`] instance (see [`crate::installation::check_for_conflicts`])
-    /// so the invariant always holds in practice.
-    pub fn remove_conflicts(&mut self, conflicts_list: &HashMap<PathBuf, String>) {
-        for conflict in conflicts_list {
-            let conflicting_mod_idx = self.get_mod_by_name(conflict.1.as_ref()).unwrap().0;
-            let conflict_filename = conflict.0.file_name();
-            self.mods[conflicting_mod_idx]
-                .files
-                .retain(|f| f.file_name() != conflict_filename);
-        }
-    }
-
-    /// Appends `new_mod` to the in-memory list and writes the data file
-    ///
-    /// # Arguments
-    /// * `new_mod` - The [`Mod`] to add
-    ///
-    /// # Returns
-    /// * [`Ok`] -> `()` on success
-    /// * [`Err`] -> The type of error that occurred
+    /// An exact match is preferred; otherwise a case-insensitive match is accepted.
     ///
     /// # Errors
-    /// * [`DataInteractionError::Json`] if the data file cannot be written or serialized
-    pub fn save_new_mod(&mut self, new_mod: &Mod) -> Result<(), DataInteractionError> {
-        self.mods.push(new_mod.clone());
-        Ok(save_json(&PATHS.data_file, &self)?)
+    /// * [`DataInteractionError::ModNotFound`] if no mod with that name exists
+    pub fn index_of(&self, name: &str) -> Result<usize, DataInteractionError> {
+        self.mods
+            .iter()
+            .position(|m| m.name == name)
+            .or_else(|| self.mods.iter().position(|m| m.name.eq_ignore_ascii_case(name)))
+            .ok_or_else(|| DataInteractionError::ModNotFound(name.to_string()))
     }
 
-    /// Removes the mod at `index_to_remove` from the in-memory list and writes the data file
-    ///
-    /// # Arguments
-    /// * `index_to_remove` - Index into [`Data::mods`] of the mod to remove
-    ///
-    /// # Returns
-    /// * [`Ok`] -> `()` on success
-    /// * [`Err`] -> The type of error that occurred
+    /// Returns the mod whose name matches `name` (see [`Mods::index_of`])
     ///
     /// # Errors
-    /// * [`DataInteractionError::Json`] if the data file cannot be written or serialized
-    pub fn remove_mod(&mut self, index_to_remove: usize) -> Result<(), DataInteractionError> {
-        self.mods.remove(index_to_remove);
-        Ok(save_json(&PATHS.data_file, &self)?)
+    /// * [`DataInteractionError::ModNotFound`] if no mod with that name exists
+    pub fn get(&self, name: &str) -> Result<&Mod, DataInteractionError> {
+        Ok(&self.mods[self.index_of(name)?])
     }
 
-    /// Toggles the enabled flag of the mod at `index`, replaces its file list, then writes the data file
-    ///
-    /// # Arguments
-    /// * `index` - Index into [`Data::mods`] of the mod to update
-    /// * `new_files` - Updated list of file paths to store (reflecting the new enabled/disabled location)
+    /// Finds which mod, among those other than `excluded`, owns the file whose
+    /// enabled location is `active_path`
     ///
     /// # Returns
-    /// * [`Ok`] -> `()` on success
-    /// * [`Err`] -> The type of error that occurred
-    ///
-    /// # Errors
-    /// * [`DataInteractionError::Json`] if the data file cannot be written or serialized
-    pub fn switch_mod_state(
-        &mut self,
-        index: usize,
-        new_files: Vec<PathBuf>,
-    ) -> Result<(), DataInteractionError> {
-        self.mods[index].files = new_files;
-        self.mods[index].enabled = !self.mods[index].enabled;
-        Ok(save_json(&PATHS.data_file, &self)?)
-    }
-
-    /// Finds the mod whose name matches `name`
-    ///
-    /// # Arguments
-    /// * `name` - The name to search for
-    ///
-    /// # Returns
-    /// * [`Ok`]`((usize, Mod))` — index in [`Data::mods`] and a clone of the matching mod
-    /// * [`Err`] -> [`DataInteractionError::ModNotFound`] if no mod with that name exists
-    pub fn get_mod_by_name(&self, name: &str) -> Result<(usize, Mod), DataInteractionError> {
+    /// * [`Some`] -> Index of the owning mod
+    /// * [`None`] -> No (other) mod owns that file
+    pub fn owner_of(&self, active_path: &Path, excluded: Option<usize>) -> Option<usize> {
         self.mods
             .iter()
             .enumerate()
-            .find(|(_, m)| m.name == name)
-            .map(|(i, m)| (i, m.clone()))
-            .ok_or_else(|| DataInteractionError::ModNotFound(name.to_string()))
+            .filter(|(i, _)| Some(*i) != excluded)
+            .find(|(_, m)| m.files.iter().any(|f| same_path(&Mod::active_path(f), active_path)))
+            .map(|(i, _)| i)
     }
 }
 
 /// Errors that could occur during interactions with the saved data
 #[derive(Error, Debug)]
 pub enum DataInteractionError {
-    /// The file extension does not correspond to any known mod type recognized by ATA
-    #[error("'{0}' is not an extension of a know mod type")]
-    InvalidModTypeExtension(String),
-
-    /// The mod folder contains files that prevent inferring a clear mod type
-    #[error("Couldn't not infer mod type from mod files")]
-    UnclearModType,
-
     /// Reading or writing the data file as JSON failed
-    #[error("Could'not parse Json for saving/loading data. {0}")]
+    #[error("Couldn't load/save installed mods data. {0}")]
     Json(#[from] JsonParsingError),
 
     /// A path component of a stored file could not be extracted or expanded
@@ -182,16 +145,18 @@ pub enum DataInteractionError {
     FilesInteraction(#[from] FilesInteractionError),
 
     /// No mod with the given name was found in the data file
-    #[error("No installed mod has the name {0}")]
+    #[error("No installed mod has the name '{0}'")]
     ModNotFound(String),
 }
 
 /// Everything ATA needs to track about an installed mod
-#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug, PartialOrd, Ord, Hash)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct Mod {
     /// Name of the mod given by the user
     pub name: String,
-    /// Individual files belonging to the mod (full paths, not the containing folder)
+    /// Individual files belonging to the mod (full paths, not the containing folder).
+    /// Disabled files live in a `.disabled/` folder next to their enabled location
     pub files: Vec<PathBuf>,
     /// Whether the mod is currently active in the game folder
     pub enabled: bool,
@@ -199,226 +164,123 @@ pub struct Mod {
     pub mod_type: ModType,
     /// UTC timestamp of when the mod was installed
     pub install_date: DateTime<Utc>,
-    /// Unique identifier derived from the mod's name, type, and install date
+    /// Identifier derived from the mod's name, type, and install date
     pub uid: String,
+    /// Original game files the mod replaced, saved so they can be restored
+    #[serde(default)]
+    pub backups: Vec<Backup>,
+}
+
+/// An original file of the game that was set aside because a mod replaced it
+///
+/// While the mod is enabled the original lives at `backup`;
+/// while it is disabled the original is put back at `original`.
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct Backup {
+    /// Where the original file belongs (= enabled location of the mod file replacing it)
+    pub original: PathBuf,
+    /// Where the original file is kept while the mod is enabled
+    pub backup: PathBuf,
 }
 
 impl Mod {
-    /// Creates a new [`Mod`] and generates its [`Mod::uid`] automatically
+    /// Creates a new, enabled, [`Mod`] installed now and generates its [`Mod::uid`]
     ///
     /// # Arguments
     /// * `name` - Name of the mod given by the user
     /// * `files` - Individual files belonging to the mod (full paths, not the containing folder)
-    /// * `enabled` - Whether the mod is currently active in the game folder
     /// * `mod_type` - Categorises what kind of assets the mod replaces
-    /// * `install_date` - UTC timestamp of when the mod was installed
-    ///
-    /// # Returns
-    /// * A fully populated [`Mod`] instance with a generated [`Mod::uid`]
-    pub fn new(
-        name: String,
-        files: Vec<PathBuf>,
-        enabled: bool,
-        mod_type: ModType,
-        install_date: DateTime<Utc>,
-    ) -> Self {
+    /// * `backups` - Original game files replaced by the mod
+    pub fn new(name: String, files: Vec<PathBuf>, mod_type: ModType, backups: Vec<Backup>) -> Self {
+        let install_date = Utc::now();
+
         Self {
             uid: Self::get_uid(&name, &mod_type, &install_date),
             name,
             files,
-            enabled,
+            enabled: true,
             mod_type,
             install_date,
+            backups,
         }
     }
 
-    /// Builds a unique identifier string from the mod's name, type, and install date
+    /// Builds an identifier string from the mod's name, type, and install date
     ///
     /// The UID is formed by concatenating the first four characters of the name,
     /// the type's short ID (see [`ModType::get_id`]), and the install date formatted
-    /// as `dd/mm/yyyy|HH:MM`.
-    ///
-    /// # Arguments
-    /// * `mod_name` - Name of the mod given by the user
-    /// * `mod_type` - Type of the mod
-    /// * `install_date` - UTC timestamp of when the mod was installed
-    ///
-    /// # Returns
-    /// * A [`String`] containing the generated UID
+    /// as `dd/mm/yyyy|HH:MM:SS`.
     fn get_uid(mod_name: &str, mod_type: &ModType, install_date: &DateTime<Utc>) -> String {
         let name: String = mod_name.chars().take(4).collect();
-        let m_type = mod_type.get_id();
-        let date = install_date.format("%d/%m/%Y|%H:%M").to_string();
+        let date = install_date.format("%d/%m/%Y|%H:%M:%S");
 
-        format!("{}{}{}", name, m_type, date)
+        format!("{}{}{}", name, mod_type.get_id(), date)
     }
-}
 
-/// Mod types supported by ATA
-///
-/// Mod types not currently supported are not generic, but mod-specific (like NAIOM)
-#[derive(
-    Serialize, Deserialize, Clone, PartialEq, Eq, Debug, PartialOrd, Ord, Copy, Hash, EnumIter,
-)]
-pub enum ModType {
-    /// `DLL` mods are unique mods
-    /// They contain **dll** files and other files
-    DLL,
-    /// `Textures` mods contain textures for models
-    /// They contain **dds** files
-    Textures,
-    /// `Player models` mods contain 3D models for 2B, 9S, A2
-    /// They contain **dtt/dat** files
-    PlayerModels,
-    /// `Weapon models` mods contain 3D models for weapons
-    /// They contain **dtt/dat** files
-    WeaponModels,
-    /// `World models` mods contain 3D models for world objects
-    /// They contain **dtt/dat** files
-    WorldModels,
-    /// `Cutscene replacements` mods contain replacements for the game's cutscenes
-    /// They contain **usm** files
-    CutsceneReplacements,
-    /// `Reshade presets` mods contain shader presets
-    /// They contain **ini** files and other files
-    ReshadePreset,
-}
-
-impl ModType {
-    /// Returns the relative subfolder inside the game directory where this mod type's files live
+    /// Location a mod file has while its mod is enabled
     ///
-    /// # Arguments
-    /// * `mod_name` - Name of the mod
-    /// * `prefix` - Two-character prefix extracted from the filename (e.g., `"pl"`, `"wp"`, `"bg"`)
-    ///
-    /// # Returns
-    /// * `wax/mods/<mod_name>` for textures
-    /// * `data/pl/` or `data/misctex/` for player models
-    /// * `data/wp/` or `data/misctex/` for weapon models
-    /// * `data/bg/` or `data/misctex/` for world models
-    /// * `data/movie/` for cutscene replacements
-    /// * empty path for reshade presets & DLL mods (game root)
-    pub fn get_corresponding_folder(&self, mod_name: &String, prefix: &str) -> PathBuf {
-        match self {
-            ModType::DLL => PathBuf::new(),
-            ModType::Textures => PathBuf::from("wax").join("mods").join(mod_name),
-            ModType::PlayerModels => {
-                if prefix == "pl" {
-                    PathBuf::from("data").join("pl")
-                } else {
-                    PathBuf::from("data").join("misctex")
-                }
+    /// `game/data/pl/.disabled/pl0000.dat` -> `game/data/pl/pl0000.dat`
+    pub fn active_path(file: &Path) -> PathBuf {
+        match (file.parent(), file.file_name()) {
+            (Some(parent), Some(name)) if parent.file_name() == Some(OsStr::new(DISABLED_DIR_NAME)) => {
+                parent.parent().unwrap_or(parent).join(name)
             }
-            ModType::WeaponModels => {
-                if prefix == "wp" {
-                    PathBuf::from("data").join("wp")
-                } else {
-                    PathBuf::from("data").join("misctex")
-                }
-            }
-            ModType::WorldModels => {
-                if prefix == "bg" {
-                    PathBuf::from("data").join("bg")
-                } else {
-                    PathBuf::from("data").join("misctex")
-                }
-            }
-            ModType::CutsceneReplacements => PathBuf::from("data").join("movie"),
-            ModType::ReshadePreset => PathBuf::new(),
+            _ => file.to_path_buf(),
         }
     }
 
-    /// Returns a short ID for the [`ModType`], used as part of a mod's [`Mod::uid`]
+    /// Location a mod file has while its mod is disabled
     ///
-    /// # Returns
-    /// A string slice containing the ID:
-    /// * `DLL` -> `"Dll"`
-    /// * `Textures` -> `"Te"`
-    /// * `PlayerModels` -> `"PlMo"`
-    /// * `WeaponModels` -> `"WeMo"`
-    /// * `WorldModels` -> `"WoMo"`
-    /// * `CutsceneReplacements` -> `"CuRe"`
-    /// * `ReshadePreset` -> `"RePr"`
-    fn get_id(&self) -> &str {
-        match self {
-            ModType::DLL => "Dll",
-            ModType::Textures => "Te",
-            ModType::PlayerModels => "PlMo",
-            ModType::WeaponModels => "WeMo",
-            ModType::WorldModels => "WoMo",
-            ModType::CutsceneReplacements => "CuRe",
-            ModType::ReshadePreset => "RePr",
+    /// `game/data/pl/pl0000.dat` -> `game/data/pl/.disabled/pl0000.dat`
+    pub fn disabled_path(file: &Path) -> PathBuf {
+        let active = Self::active_path(file);
+        match (active.parent(), active.file_name()) {
+            (Some(parent), Some(name)) => parent.join(DISABLED_DIR_NAME).join(name),
+            _ => active,
         }
     }
 
-    /// Returns a set of all file extensions recognized by ATA across all supported mod types
+    /// Whether a mod file stays in place when its mod is disabled
     ///
-    /// # Returns
-    /// * A [`HashSet`] of string slices containing extensions (`"dll"`, `"dds"`, `"dtt"`, `"dat"`, `"usm"`, `"ini"`)
-    pub fn all_extensions() -> HashSet<&'static str> {
-        ModType::iter()
-            .flat_map(|t| match t {
-                ModType::DLL => ["dll"].as_slice(),
-                ModType::Textures => ["dds"].as_slice(),
-                ModType::PlayerModels | ModType::WeaponModels | ModType::WorldModels => {
-                    ["dtt", "dat"].as_slice()
-                }
-                ModType::CutsceneReplacements => ["usm"].as_slice(),
-                ModType::ReshadePreset => ["ini"].as_slice(),
-            })
-            .copied()
-            .collect()
+    /// ReShade shaders and textures (anything inside `reshade-shaders/`) are only used through
+    /// presets and are often shared between presets, so disabling a preset only moves its `.ini`.
+    pub fn is_static_file(file: &Path) -> bool {
+        file.components()
+            .any(|c| c.as_os_str().to_string_lossy().eq_ignore_ascii_case("reshade-shaders"))
+    }
+
+    /// Returns the backup of the original file that `active_path` replaced, if any
+    pub fn backup_for(&self, active_path: &Path) -> Option<&Backup> {
+        self.backups.iter().find(|b| same_path(&b.original, active_path))
+    }
+
+    /// Removes and returns the backup of the original file that `active_path` replaced, if any
+    pub fn take_backup_for(&mut self, active_path: &Path) -> Option<Backup> {
+        let index = self.backups.iter().position(|b| same_path(&b.original, active_path))?;
+        Some(self.backups.remove(index))
+    }
+
+    /// Total size on disk of the mod's files, in bytes (missing files count as 0)
+    pub fn total_size(&self) -> u64 {
+        self.files
+            .iter()
+            .filter_map(|f| f.metadata().ok())
+            .map(|m| m.len())
+            .sum()
     }
 }
 
-impl fmt::Display for ModType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ModType::DLL => write!(f, "Unique mod"),
-            ModType::Textures => write!(f, "Textures"),
-            ModType::PlayerModels => write!(f, "Player Models"),
-            ModType::WeaponModels => write!(f, "Weapon Models"),
-            ModType::WorldModels => write!(f, "World Models"),
-            ModType::CutsceneReplacements => write!(f, "Cutscene Replacements"),
-            ModType::ReshadePreset => write!(f, "ReShade Preset"),
-        }
+/// Compares two paths the way the current OS file system does
+/// (case-insensitively and ignoring the separator kind on Windows)
+pub fn same_path(a: &Path, b: &Path) -> bool {
+    #[cfg(windows)]
+    {
+        let normalize = |p: &Path| p.to_string_lossy().replace('/', "\\").to_lowercase();
+        normalize(a) == normalize(b)
     }
-}
-
-impl TryFrom<(&str, &str)> for ModType {
-    type Error = DataInteractionError;
-
-    fn try_from(file_description: (&str, &str)) -> Result<Self, DataInteractionError> {
-        match file_description {
-            ("dll", _) => Ok(ModType::DLL),
-            ("dds", _) => Ok(ModType::Textures),
-            ("dtt" | "dat", "pl") => Ok(ModType::PlayerModels),
-            ("dtt" | "dat", "mi") => Ok(ModType::PlayerModels),
-            ("dtt" | "dat", "wp") => Ok(ModType::WeaponModels),
-            ("dtt" | "dat", "bg") => Ok(ModType::WorldModels),
-            ("usm", _) => Ok(ModType::CutsceneReplacements),
-            ("ini", _) => Ok(ModType::ReshadePreset),
-            (ext, _) => Err(DataInteractionError::InvalidModTypeExtension(
-                ext.to_string(),
-            )),
-        }
-    }
-}
-
-impl TryFrom<HashSet<ModType>> for ModType {
-    type Error = DataInteractionError;
-
-    fn try_from(mod_types: HashSet<ModType>) -> Result<Self, DataInteractionError> {
-        if mod_types.len() == 1 {
-            Ok(mod_types.into_iter().next().unwrap())
-        } else if mod_types.contains(&ModType::PlayerModels) {
-            Ok(ModType::PlayerModels)
-        } else if mod_types.contains(&ModType::WeaponModels) {
-            Ok(ModType::WeaponModels)
-        } else if mod_types.contains(&ModType::WorldModels) {
-            Ok(ModType::WorldModels)
-        } else {
-            Err(DataInteractionError::UnclearModType)
-        }
+    #[cfg(not(windows))]
+    {
+        a == b
     }
 }

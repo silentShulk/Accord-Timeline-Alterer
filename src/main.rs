@@ -1,218 +1,212 @@
-//! **main** is the entry point for ATA
+//! **main** is the entry point of the `ATA` command line interface
 //!
-//! Parses CLI arguments and dispatches to the correct subcommand.
-//! Each subcommand prints its result as JSON to stdout so the
-//! caller can consume it programmatically.
+//! Parses CLI arguments and dispatches to the correct feature of the [`ata`] library.
+//! Each command prints its result as JSON to stdout so the caller (usually a GUI)
+//! can consume it programmatically. Errors and warnings go to stderr.
 //!
-//! This includes:
-//! * **install**: `--install [PATH] [NAME]` — install a mod from a compressed archive
+//! Commands:
+//! * **install**: `--install [PATH] [NAME]` — install a mod from an archive or a folder (`--overwrite` to replace conflicting files)
 //! * **uninstall**: `--uninstall [NAME]` — remove an installed mod by name
 //! * **list**: `--list-mods` — print all installed mods as a JSON array
 //! * **enable**: `--enable [NAME]` — re-activate a disabled mod
 //! * **disable**: `--disable [NAME]` — deactivate an enabled mod without removing it
 //! * **settings**: `--settings [NAME] [VALUE]` — update a single setting by name
+//! * **list settings**: `--list-settings` — print all settings
 //! * **automata**: `--automata` — launch NieR:Automata via Steam
 //! * **files**: `--files` — print application paths as JSON
+//! * **detect game**: `--detect-game` — look for the game in the Steam libraries
+//! * **wipe**: `--wipe` — uninstall every mod
 //!
-//! Main function: [`main`]
+//! Exit codes: see [`ExitCode`]
 
-mod data;
-mod features;
-mod utils;
-use data::{mods, settings, paths};
-use features::{installation, uninstallation, mod_managing, misc};
+use ata::features::game::{detect_game_path, launch_automata};
+use ata::features::installation::{InstallStep, InstallationError, install_mod};
+use ata::features::listing::list_mods;
+use ata::features::mod_managing::{disable_mod, enable_mod};
+use ata::features::uninstallation::uninstall_mod;
+use ata::features::wipe::uninstall_all;
+use ata::{Mods, PATHS, Settings};
 
-use paths::PATHS;
-use mods::Mods;
-use settings::Settings;
-use uninstallation::uninstall_mod;
-use mod_managing::{disable_mod, enable_mod, list_mods};
-use installation::install_mod;
-use misc::{/*update_discord_rich_presence, Action,*/ launch_automata};
-
+use std::fmt::Display;
 use std::path::PathBuf;
 
-use clap::Parser;
+use clap::{ArgGroup, Parser};
 
+/// Exit codes of the CLI, so callers can react without parsing error messages
+#[repr(i32)]
+#[derive(Clone, Copy)]
+enum ExitCode {
+    /// The data or settings file couldn't be loaded
+    LoadFailure = 1,
+    // 2 is used by clap for invalid arguments
+    /// The command failed
+    CommandFailure = 3,
+    /// The installation was refused because of conflicts (retry with `--overwrite`)
+    InstallConflicts = 4,
+}
 
- 
 /// CLI argument definitions for ATA
 ///
-/// Exactly one primary action flag should be provided per invocation.
+/// Exactly one action flag must be provided per invocation.
 /// Clap validates argument counts and generates `--help` output automatically.
 #[derive(Parser)]
 #[command(
     name = "ATA",
-    version = "0.01",
-    about = "Accord's Timeline Alterer, the cross-platform NieR Automata mod manager"
+    version,
+    about = "Accord's Timeline Alterer, the cross-platform NieR:Automata mod manager",
+    long_about = None,
+    group(ArgGroup::new("action").required(true).multiple(false).args([
+        "install", "uninstall", "list_mods", "enable", "disable", "settings",
+        "list_settings", "automata", "files", "detect_game", "wipe",
+    ]))
 )]
 struct Args {
-    /// Install a mod from a compressed archive at `PATH` and register it under `NAME`
-    #[arg(long = "install", short='i', num_args = 2, value_names = ["PATH", "NAME"],
-        help="Install a mod from a given path with a specified name")]
+    /// Install a mod from an archive (.zip, .7z, .rar) or a folder at `PATH` and register it under `NAME`
+    #[arg(long = "install", short = 'i', num_args = 2, value_names = ["PATH", "NAME"], allow_hyphen_values = true)]
     install: Option<Vec<String>>,
- 
-    /// Forces any older conflicting mod file to be overwritten during installation
-    #[arg(
-        long = "overwrite",
-        short = 'o',
-        help = "Forces any older conflicting file to be overwritten",
-        requires = "install"
-    )]
+
+    /// Overwrite files of installed mods conflicting with the one being installed
+    #[arg(long = "overwrite", short = 'o', requires = "install")]
     overwrite: bool,
- 
-    /// Uninstall the mod registered under `NAME`, removing its files from the game directory
-    #[arg(
-        long = "uninstall",
-        short = 'u',
-        value_name = "NAME",
-        help = "Uninstall a mod by its name"
-    )]
+
+    /// Print every installation step to stderr
+    #[arg(long = "verbose", short = 'v', requires = "install")]
+    verbose: bool,
+
+    /// Uninstall a mod by its name, restoring the game files it replaced
+    #[arg(long = "uninstall", short = 'u', value_name = "NAME", allow_hyphen_values = true)]
     uninstall: Option<String>,
- 
-    /// Print all installed mods as a JSON array and exit
-    #[arg(long = "list-mods", short = 'm', help = "List all installed mods")]
+
+    /// List all installed mods (sorted according to the settings)
+    #[arg(long = "list-mods", short = 'm')]
     list_mods: bool,
- 
-    /// Move the mod's files back into the game directory so the game loads them
-    #[arg(
-        long = "enable",
-        short = 'e',
-        value_name = "NAME",
-        help = "Enable a mod by its name"
-    )]
+
+    /// Enable a mod by its name
+    #[arg(long = "enable", short = 'e', value_name = "NAME", allow_hyphen_values = true)]
     enable: Option<String>,
- 
-    /// Move the mod's files to a `.disabled/` subfolder so the game ignores them
-    #[arg(
-        long = "disable",
-        short = 'd',
-        value_name = "NAME",
-        help = "Disable a mod by its name"
-    )]
+
+    /// Disable a mod by its name (its files are moved to `.disabled/` folders)
+    #[arg(long = "disable", short = 'd', value_name = "NAME", allow_hyphen_values = true)]
     disable: Option<String>,
- 
-    /// Update the setting identified by `NAME` to `VALUE` and persist the change
-    #[arg(long="settings", short='s', value_names = ["NAME", "VALUE"],
-        help="Path to the settings file")]
+
+    /// Change the setting `NAME` to `VALUE` (names are the camelCase keys of settings.json)
+    #[arg(long = "settings", short = 's', num_args = 2, value_names = ["NAME", "VALUE"], allow_hyphen_values = true)]
     settings: Option<Vec<String>>,
- 
-    /// Print all settings and their current values as JSON
-    #[arg(
-        long = "list-settings",
-        short = 'l',
-        help = "List all settings and their values"
-    )]
+
+    /// List all settings and their values
+    #[arg(long = "list-settings", short = 'l')]
     list_settings: bool,
- 
-    /// Start NieR:Automata via Steam
-    #[arg(long = "automata", short = 'a', help = "Start NieR:Automata")]
+
+    /// Start NieR:Automata through Steam
+    #[arg(long = "automata", short = 'a')]
     automata: bool,
- 
-    /// List all internal application file paths used by ATA
-    #[arg(long = "files", short = 'f', help = "List all of ATA's files")]
+
+    /// List all of ATA's files and folders
+    #[arg(long = "files", short = 'f')]
     files: bool,
+
+    /// Look for NieR:Automata in the Steam libraries and print its folder
+    #[arg(long = "detect-game")]
+    detect_game: bool,
+
+    /// Uninstall every mod (no short flag on purpose)
+    #[arg(long = "wipe")]
+    wipe: bool,
 }
- 
-/// Loads persisted state, dispatches to the requested subcommand, and prints the result as JSON
-///
-/// Exits with a status code of `1` if loading data/settings fails, or `0` if a command fails execution.
+
+/// Dispatches to the requested command, loading only the state it needs
 fn main() {
     let args = Args::parse();
-    // let mut action = Action::JustOpened;
- 
-    let mut data = Mods::load_data().unwrap_or_else(|er| {
-        eprintln!("Problem loading data: {}", er);
-        std::process::exit(1);
-    });
-    let mut settings = Settings::load_settings().unwrap_or_else(|er| {
-        eprintln!("Problem loading settings: {}", er);
-        std::process::exit(1);
-    });
- 
-    // update_discord_rich_presence(&settings.discord_rich_presence, action).unwrap_or_else(|er| {
-    //     eprintln!("Problem using DRP: {}", er);
-    // });
- 
+
     if let Some(params) = args.install {
-        let overwrite = args.overwrite;
-        let installed_mod = install_mod(
-            &PathBuf::from(&params[0]),
-            params[1].clone(),
-            overwrite,
-            &settings,
-            &mut data,
-        )
-        .unwrap_or_else(|er| {
-            eprintln!("Install failed: {}", er);
-            std::process::exit(0);
-        });
-        print!("{}", json(&[installed_mod]));
-        // action = Action::Installing;
+        let (settings, mut data) = (load_settings(), load_data());
+        let (path, name) = (PathBuf::from(&params[0]), &params[1]);
+        let verbose = args.verbose;
+        let mut report = |step: InstallStep, message: &str| match step {
+            InstallStep::Warning => eprintln!("warning: {message}"),
+            _ if verbose => eprintln!("[{step:?}] {message}"),
+            _ => {}
+        };
+
+        match install_mod(&path, name, args.overwrite, &settings, &mut data, &mut report) {
+            Ok(installed) => print_json(&[installed]),
+            Err(err @ InstallationError::FileConflict(_)) => fail("Install failed", err, ExitCode::InstallConflicts),
+            Err(err) => fail("Install failed", err, ExitCode::CommandFailure),
+        }
     } else if let Some(name) = args.uninstall {
-        let uninstalled_mod = uninstall_mod(&mut data, name).unwrap_or_else(|er| {
-            eprintln!("Uninstall failed: {}", er);
-            std::process::exit(0);
-        });
-        print!("{}", json(&[uninstalled_mod]));
-        // action = Action::Uninstalling
+        let (settings, mut data) = (load_settings(), load_data());
+        let uninstalled = uninstall_mod(&mut data, &name, &settings.game_path).unwrap_or_else(|er| command_failed("Uninstall failed", er));
+        print_json(&[uninstalled]);
     } else if args.list_mods {
-        let sorted_mods = list_mods(&settings.sorting_order, &data.mods);
-        print!("{}", json(&sorted_mods));
-        // action = Action::ListingMods;
+        let (settings, data) = (load_settings(), load_data());
+        print_json(&list_mods(settings.sorting_order, &data.mods));
     } else if let Some(name) = args.enable {
-        let enabled_mod = enable_mod(&mut data, name).unwrap_or_else(|er| {
-            eprintln!("Enable failed: {}", er);
-            std::process::exit(0);
-        });
-        print!("{}", json(&[enabled_mod]));
-        // action = Action::Enabling;
+        let (settings, mut data) = (load_settings(), load_data());
+        let enabled = enable_mod(&mut data, &name, &settings.game_path).unwrap_or_else(|er| command_failed("Enable failed", er));
+        print_json(&[enabled]);
     } else if let Some(name) = args.disable {
-        let disabled_mod = disable_mod(&mut data, name).unwrap_or_else(|er| {
-            eprintln!("Disable failed: {}", er);
-            std::process::exit(0);
-        });
-        print!("{}", json(&[disabled_mod]));
-        // action = Action::Disabling;
+        let (settings, mut data) = (load_settings(), load_data());
+        let disabled = disable_mod(&mut data, &name, &settings.game_path).unwrap_or_else(|er| command_failed("Disable failed", er));
+        print_json(&[disabled]);
     } else if args.list_settings {
-        print!("{}", json(&settings))
+        print_json(&load_settings());
     } else if let Some(params) = args.settings {
-        let changed_setting = settings
-            .update_setting(params[0].clone(), params[1].clone())
-            .unwrap_or_else(|er| {
-                eprintln!("Settings Change failed: {}", er);
-                std::process::exit(0);
-            });
-        print!("{}", json(&[changed_setting]));
-        // action = Action::ChangingSettings;
+        let mut settings = load_settings();
+        let changed = settings
+            .update_setting(&params[0], &params[1])
+            .unwrap_or_else(|er| command_failed("Settings change failed", er));
+        print_json(&[changed]);
     } else if args.automata {
-        launch_automata().unwrap_or_else(|er| eprintln!("Game failed to launch. {}", er));
+        launch_automata().unwrap_or_else(|er| command_failed("Game failed to launch", er));
         print!("Game starting...");
-        // action = Action::Playing;
     } else if args.files {
-        print!("{}", json(&*PATHS))
-    } else {
-        eprintln!("No command given");
+        print_json(&*PATHS);
+    } else if args.detect_game {
+        match detect_game_path() {
+            Some(path) => print_json(&path),
+            None => command_failed("Detection failed", "NieR:Automata wasn't found in any Steam library"),
+        }
+    } else if args.wipe {
+        let (settings, mut data) = (load_settings(), load_data());
+        let report = uninstall_all(&mut data, &settings.game_path);
+        print_json(&report);
+        if !report.failed.is_empty() {
+            std::process::exit(ExitCode::CommandFailure as i32);
+        }
     }
- 
-    // update_discord_rich_presence(&settings.discord_rich_presence, action).unwrap_or_else(|er| {
-    //     eprintln!("Problem using DRP: {}", er);
-    // });
 }
- 
-/// Serializes `value` to a compact JSON string and returns it
+
+/// Loads the installed mods, exiting with [`ExitCode::LoadFailure`] on failure
+fn load_data() -> Mods {
+    Mods::load_data().unwrap_or_else(|er| fail("Problem loading data", er, ExitCode::LoadFailure))
+}
+
+/// Loads the settings, exiting with [`ExitCode::LoadFailure`] on failure
+fn load_settings() -> Settings {
+    Settings::load_settings().unwrap_or_else(|er| {
+        fail(
+            "Problem loading settings (the ATA Launcher can create/repair them)",
+            er,
+            ExitCode::LoadFailure,
+        )
+    })
+}
+
+/// Reports a failed command and exits with [`ExitCode::CommandFailure`]
+fn command_failed(context: &str, error: impl Display) -> ! {
+    fail(context, error, ExitCode::CommandFailure)
+}
+
+/// Prints `context: error` to stderr and exits with `code`
+fn fail(context: &str, error: impl Display, code: ExitCode) -> ! {
+    eprintln!("{context}: {error}");
+    std::process::exit(code as i32);
+}
+
+/// Serializes `value` to compact JSON on stdout
 ///
 /// Panics if `value` cannot be serialized — this should never happen for
 /// the types used in this codebase.
-///
-/// # Arguments
-/// * `value` - Any value that implements [`serde::Serialize`]
-///
-/// # Returns
-/// * A [`String`] containing the compact JSON representation of `value`
-fn json<T>(value: &T) -> String
-where
-    T: serde::Serialize,
-{
-    serde_json::to_string(value).unwrap()
+fn print_json<T: serde::Serialize + ?Sized>(value: &T) {
+    print!("{}", serde_json::to_string(value).expect("ATA's types always serialize to JSON"));
 }

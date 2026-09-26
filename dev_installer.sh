@@ -1,68 +1,72 @@
 #!/bin/bash
 # ATA dev installer — Linux
-# Iterations over arrays of paths are done to chekc if thigs exist
-# Without it the stderr would polluted with warnings
+#
+# Prepares everything ATA needs to be developed/tested:
+#   - ATA's folders, a default data.json and settings.json (only if missing)
+#   - the latest built ATA executable (if `cargo build --release` was run)
+#   - a fake game folder when NieR:Automata isn't installed
+#
+# Usage: ./dev_installer.sh [--reset]
+#   --reset  also wipes data.json, settings.json and the mod folders of the game
+#            (DESTRUCTIVE: installed mods are forgotten and their files deleted)
+#
+# The game folder can be overridden with the ATA_GAME_PATH environment variable.
 
-# Remove folders for mod files (will be recreated by ATA if necessary)
-# This doesn't affect a working installation of the game
-rm -rf "$HOME/.local/share/Steam/steamapps/common/NieRAutomata/data/pl"
-rm -rf "$HOME/.local/share/Steam/steamapps/common/NieRAutomata/data/wp"
-rm -rf "$HOME/.local/share/Steam/steamapps/common/NieRAutomata/data/bg"
-rm -rf "$HOME/.local/share/Steam/steamapps/common/NieRAutomata/data/wax"
+set -euo pipefail
 
+reset=false
+[ "${1:-}" = "--reset" ] && reset=true
 
+game="${ATA_GAME_PATH:-$HOME/.local/share/Steam/steamapps/common/NieRAutomata}"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Create folders strictly necessary for development testing
-# With these, development testing is possible even if the game isn't installed
-for mod_path in "$HOME/.local/share/Steam/steamapps/common/NieRAutomata/data" "$HOME/.local/share/Steam/steamapps/common/NieRAutomata/wax/mods"; do
-    if [ ! -d "$mod_path" ]; then
-        mkdir -p "$mod_path"
-    fi
-done
+# Paths used by ATA (must match src/data/paths.rs)
+exe_dir="$HOME/.local/bin/ATA"
+data_dir="$HOME/.local/share/ATA"
+settings_dir="$HOME/.config/ATA"
+data_file="$data_dir/data.json"
+settings_file="$settings_dir/settings.json"
 
+if $reset; then
+    echo "Resetting ATA data and the game's mod folders"
+    rm -f "$data_file" "$settings_file"
+    rm -rf "$game/data/pl" "$game/data/wp" "$game/data/bg" "$game/data/misctex" \
+           "$game/wax/mods" "$game/.ata-backup"
+fi
 
+# ATA's folders
+mkdir -p "$exe_dir" "$data_dir/UIs" "$data_dir/Apps" "$settings_dir"
 
-# Directories used by ATA
-exe="$HOME/.local/bin/ATA"
-data="$HOME/.local/share/ATA"
-settings="$HOME/.config/ATA"
-uis="$HOME/.local/share/UIs"
-apps="$HOME/.local/share/Apps"
+# Folders needed to test mod installation, even without the game installed
+mkdir -p "$game/data" "$game/wax/mods"
+if [ ! -f "$game/NieRAutomata.exe" ]; then
+    echo "NieR:Automata not found in $game, creating a fake game executable for testing"
+    touch "$game/NieRAutomata.exe"
+fi
 
-ata_dirs=(
-    "$exe" "$data" "$settings" "$uis" "$apps"
-)
-for dir in "${ata_dirs[@]}"; do
-    if [ ! -d "$dir" ]; then
-        mkdir -p "$dir"
-    fi
-done
+# Latest release build of the backend
+if [ -f "$script_dir/target/release/ATA" ]; then
+    install -m 755 "$script_dir/target/release/ATA" "$exe_dir/ATA"
+fi
 
+# Default data and settings, never overwriting existing ones
+if [ ! -f "$data_file" ]; then
+    printf '{\n  "mods": []\n}\n' > "$data_file"
+fi
 
-
-# Insert default content inside data and settings
-
-# data.json
-cat << 'JSON' > "$data/data.json"
-{
-    "mods": []
-}
-JSON
-
-# settings.json
-cat << 'JSON' > "$settings/settings.json"
+if [ ! -f "$settings_file" ]; then
+    cat << JSON > "$settings_file"
 {
   "style": "ShellUI",
   "palette": "Automata",
   "sortingOrder": "ModType",
   "filesConflictResolution": "Warn",
-  "keepExtractedFolders": true,
-  "extractedFoldersLocation": "$HOME/Downloads",
-  "gamePath": "$HOME/.local/share/Steam/steamapps/common/NieRAutomata",
+  "keepExtractedFolders": false,
+  "extractedFoldersLocation": "",
+  "gamePath": "$game",
   "discordRichPresence": "Altering NieRAutomata's timelines"
 }
 JSON
-
-
+fi
 
 echo "ATA dev environment ready."

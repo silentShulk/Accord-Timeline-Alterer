@@ -5,229 +5,180 @@
 //! inside that folder (disabled). The new file paths are then persisted back to the
 //! data file so ATA always knows where to find every mod.
 //!
-//! This includes:
-//! * **enabling**: Moving mod files from `.disabled/` back into the game's asset folder
-//! * **disabling**: Moving mod files out of the game's asset folder into `.disabled/`
-//! * **listing**: Sorting tracked mods according to user preferences
+//! If the mod replaced original game files, those are put back in place while the
+//! mod is disabled, and set aside again when it is re-enabled.
+//! Files inside `reshade-shaders/` are never moved (see [`Mod::is_static_file`]).
+//!
+//! Every change is transactional: if one file can't be moved, nothing changes.
 //!
 //! Main functions: [`enable_mod`], [`disable_mod`]
 
-use crate::utils::files::{get_filename_or_err, get_parent_or_err, FilesInteractionError};
-use crate::mods::{Mods, DataInteractionError, Mod};
-use crate::settings::SortingOrder;
+use crate::data::mods::{Backup, DataInteractionError, Mod, Mods, same_path};
+use crate::features::backup_location;
+use crate::features::transaction::Transaction;
+use crate::utils::files::unique_path;
 
-use std::fs::{create_dir_all, rename};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use thiserror::Error;
 
-
-
-/// Moves a disabled mod's files back into the game's asset folder and marks it as enabled
-///
-/// For each file currently stored in a `.disabled/` subdirectory, this function
-/// moves it one level up to the parent game asset folder and records the new path.
-/// After all files are moved, [`Data::switch_mod_state`] is called to toggle the
-/// `enabled` flag and persist the updated paths to the data file.
+/// Moves a disabled mod's files back into the game's asset folders and marks it as enabled
 ///
 /// # Arguments
-/// * `data` - Mutable reference to the current [`Data`] state
+/// * `data` - Mutable reference to the current [`Mods`] state
 /// * `mod_name` - Name of the mod to enable
+/// * `game_path` - The game folder (empty folders left inside it are cleaned up)
 ///
 /// # Returns
 /// * [`Ok`] -> A clone of the now-enabled [`Mod`]
-/// * [`Err`] -> The type of error that occurred
+/// * [`Err`] -> The type of error that occurred (nothing was changed)
 ///
 /// # Errors
 /// * [`ModManagingError::DataSaving`] if no mod with `mod_name` exists, or the data file could not be updated
 /// * [`ModManagingError::AlreadyEnabled`] if the mod is already enabled
-/// * [`ModManagingError::FilesInteraction`] if a stored file path has no name/parent
-/// * [`ModManagingError::Renaming`] if a file could not be moved
-pub fn enable_mod(data: &mut Mods, mod_name: String) -> Result<Mod, ModManagingError> {
-    let mod_to_enable = data.get_mod_by_name(&mod_name)?;
-    if mod_to_enable.1.enabled {
-        return Err(ModManagingError::AlreadyEnabled(mod_name));
-    }
-
-    let updated_files = toggle_files_state(mod_to_enable.1)?;
-
-    data.switch_mod_state(mod_to_enable.0, updated_files)?;
-
-    Ok(data.mods[mod_to_enable.0].clone())
+/// * [`ModManagingError::Moving`] if a file could not be moved
+pub fn enable_mod(data: &mut Mods, mod_name: &str, game_path: &Path) -> Result<Mod, ModManagingError> {
+    set_mod_state(data, mod_name, true, game_path)
 }
 
-/// Moves an enabled mod's files into a `.disabled/` subdirectory and marks it as disabled
-///
-/// For each file currently in the game's asset folder, this function creates a
-/// `.disabled/` subdirectory alongside it (if it does not already exist), moves
-/// the file there, and records the new path. After all files are moved,
-/// [`Data::switch_mod_state`] is called to toggle the `enabled` flag and persist
-/// the updated paths to the data file.
+/// Moves an enabled mod's files into `.disabled/` subdirectories and marks it as disabled
 ///
 /// # Arguments
-/// * `data` - Mutable reference to the current [`Data`] state
+/// * `data` - Mutable reference to the current [`Mods`] state
 /// * `mod_name` - Name of the mod to disable
+/// * `game_path` - The game folder (empty folders left inside it are cleaned up)
 ///
 /// # Returns
 /// * [`Ok`] -> A clone of the now-disabled [`Mod`]
-/// * [`Err`] -> The type of error that occurred
+/// * [`Err`] -> The type of error that occurred (nothing was changed)
 ///
 /// # Errors
 /// * [`ModManagingError::DataSaving`] if no mod with `mod_name` exists, or the data file could not be updated
 /// * [`ModManagingError::AlreadyDisabled`] if the mod is already disabled
-/// * [`ModManagingError::FilesInteraction`] if a stored file path has no name/parent
-/// * [`ModManagingError::FolderCreation`] if the `.disabled/` directory could not be created
-/// * [`ModManagingError::Renaming`] if a file could not be moved
-pub fn disable_mod(data: &mut Mods, mod_name: String) -> Result<Mod, ModManagingError> {
-    let mod_to_disable = data.get_mod_by_name(&mod_name)?;
-    if !mod_to_disable.1.enabled {
-        return Err(ModManagingError::AlreadyDisabled(mod_name));
-    }
-    let updated_files = toggle_files_state(mod_to_disable.1)?;
-
-    data.switch_mod_state(mod_to_disable.0, updated_files)?;
-
-    Ok(data.mods[mod_to_disable.0].clone())
+/// * [`ModManagingError::Moving`] if a file could not be moved
+pub fn disable_mod(data: &mut Mods, mod_name: &str, game_path: &Path) -> Result<Mod, ModManagingError> {
+    set_mod_state(data, mod_name, false, game_path)
 }
 
 /// Errors that could occur while enabling or disabling a mod
 #[derive(Error, Debug)]
 pub enum ModManagingError {
-    /// The `.disabled/` directory could not be created
-    #[error("Couldn't create {0}. {1}")]
-    FolderCreation(PathBuf, std::io::Error),
-
     /// A file could not be moved between the enabled and disabled locations
-    #[error("Couldn't move file to enabled/disabled folder. {0}")]
-    Renaming(#[from] std::io::Error),
+    #[error("Couldn't move '{}' to '{}'. {source}", from.display(), to.display())]
+    Moving {
+        from: PathBuf,
+        to: PathBuf,
+        source: std::io::Error,
+    },
 
-    /// The data file could not be updated after moving the files
-    #[error("Couldn't update data file (data.json found inside data dir of OS). {0}")]
+    /// The data file could not be read or updated
+    #[error("{0}")]
     DataSaving(#[from] DataInteractionError),
 
     /// The requested mod is already enabled
-    #[error("\"{0}\" is already enabled")]
+    #[error("'{0}' is already enabled")]
     AlreadyEnabled(String),
 
     /// The requested mod is already disabled
-    #[error("\"{0}\" is already disabled")]
+    #[error("'{0}' is already disabled")]
     AlreadyDisabled(String),
-
-    /// A path component of a stored file could not be extracted
-    #[error("An error occurred while interacting with files. {0}")]
-    FilesInteraction(#[from] FilesInteractionError),
 }
 
-/// Returns a copy of the mods vector sorted according to the requested [`SortingOrder`]
-///
-/// # Arguments
-/// * `sorting_order` - Criterion used to sort the mod list
-/// * `mods` - Reference to the slice of [`Mod`]s to sort
-///
-/// # Returns
-/// * A [`Vec<Mod>`] sorted based on `sorting_order`
-pub fn list_mods(sorting_order: &SortingOrder, mods: &[Mod]) -> Vec<Mod> {
-    let mut sorted_mods: Vec<Mod> = mods.to_vec();
+/// Enables (`enable == true`) or disables a mod, then saves the data file
+fn set_mod_state(data: &mut Mods, mod_name: &str, enable: bool, game_path: &Path) -> Result<Mod, ModManagingError> {
+    let index = data.index_of(mod_name)?;
+    let current = &data.mods[index];
 
-    match sorting_order {
-        SortingOrder::ModType => sorted_mods.sort_unstable_by_key(|m| m.mod_type),
-        SortingOrder::InstallDate => (),
-        SortingOrder::EnableStatus => sorted_mods.sort_unstable_by_key(|m| m.enabled),
-        SortingOrder::Alphabetical => sorted_mods.sort_unstable_by_key(|m| m.name.clone()),
-        SortingOrder::Size => sorted_mods.sort_unstable_by_key(|m| m.files.len()),
-    };
+    match (current.enabled, enable) {
+        (true, true) => return Err(ModManagingError::AlreadyEnabled(current.name.clone())),
+        (false, false) => return Err(ModManagingError::AlreadyDisabled(current.name.clone())),
+        _ => {}
+    }
 
-    sorted_mods
-}
+    let mut updated = current.clone();
+    let mut tx = Transaction::new(game_path);
 
-/// Dispatches a mod to be enabled or disabled depending on its current state
-///
-/// # Arguments
-/// * `mod_to_enable` - The mod whose files should be toggled
-///
-/// # Returns
-/// * [`Ok`] -> List of updated [`PathBuf`]s after moving
-/// * [`Err`] -> [`EnablingDisablingError`] if file moving fails
-fn toggle_files_state(mod_to_enable: Mod) -> Result<Vec<PathBuf>, ModManagingError> {
-    if mod_to_enable.enabled {
-        disable_files(mod_to_enable.files)
+    if enable {
+        enable_files(&mut updated, &mut tx, game_path)?;
     } else {
-        enable_files(mod_to_enable.files)
+        disable_files(&mut updated, &mut tx)?;
     }
+    updated.enabled = enable;
+
+    let mut new_data = data.clone();
+    new_data.mods[index] = updated.clone();
+    new_data.save()?;
+
+    tx.commit();
+    *data = new_data;
+
+    Ok(updated)
 }
 
-/// Moves files from `.disabled/` subdirectories back up into their parent active folders
-///
-/// # Arguments
-/// * `files_to_enable` - Paths of disabled files to enable
-///
-/// # Returns
-/// * [`Ok`] -> List of updated active file paths
-/// * [`Err`] -> [`EnablingDisablingError`] if renaming fails
-fn enable_files(files_to_enable: Vec<PathBuf>) -> Result<Vec<PathBuf>, ModManagingError> {
-    let mut updated_files: Vec<PathBuf> = vec![];
+/// Moves every movable file of `the_mod` from `.disabled/` back to its enabled location,
+/// setting aside the original game file that sits there (if any)
+fn enable_files(the_mod: &mut Mod, tx: &mut Transaction, game_path: &Path) -> Result<(), ModManagingError> {
+    let mut new_backups: Vec<Backup> = Vec::new();
 
-    for file in files_to_enable {
-        let (filename, enabled_folder) = get_toggled_folder(true, &file)?;
+    for file in the_mod.files.iter_mut().filter(|f| !Mod::is_static_file(f)) {
+        let active = Mod::active_path(file);
+        if *file == active {
+            continue;
+        }
 
-        let new_path = enabled_folder.join(filename);
-        rename(file, &new_path)?;
+        // Whatever occupies the enabled location is the original file (restored while
+        // the mod was disabled) or a file placed there by hand: keep it safe either way
+        if active.exists() {
+            let backup = match the_mod.backups.iter().position(|b| same_path(&b.original, &active)) {
+                Some(i) => {
+                    let backup = unique_path(&the_mod.backups[i].backup);
+                    the_mod.backups[i].backup = backup.clone();
+                    backup
+                }
+                None => {
+                    let backup = unique_path(&backup_location(&active, game_path));
+                    new_backups.push(Backup { original: active.clone(), backup: backup.clone() });
+                    backup
+                }
+            };
+            move_file(tx, &active, &backup)?;
+        }
 
-        updated_files.push(new_path);
+        move_file(tx, file, &active)?;
+        *file = active;
     }
 
-    Ok(updated_files)
+    the_mod.backups.extend(new_backups);
+    Ok(())
 }
 
-/// Moves files from their active asset folders into adjacent `.disabled/` subdirectories
-///
-/// # Arguments
-/// * `files_to_disable` - Paths of active files to disable
-///
-/// # Returns
-/// * [`Ok`] -> List of updated disabled file paths
-/// * [`Err`] -> [`EnablingDisablingError`] if creating directories or renaming fails
-fn disable_files(files_to_disable: Vec<PathBuf>) -> Result<Vec<PathBuf>, ModManagingError> {
-    let mut updated_files: Vec<PathBuf> = vec![];
+/// Moves every movable file of `the_mod` to its `.disabled/` location,
+/// putting back the original game file it replaced (if any)
+fn disable_files(the_mod: &mut Mod, tx: &mut Transaction) -> Result<(), ModManagingError> {
+    for file in the_mod.files.iter_mut().filter(|f| !Mod::is_static_file(f)) {
+        let active = Mod::active_path(file);
+        let disabled = Mod::disabled_path(file);
+        if *file == disabled {
+            continue;
+        }
 
-    for file in files_to_disable {
-        let (filename, disabled_folder) = get_toggled_folder(false, &file)?;
+        move_file(tx, file, &disabled)?;
+        *file = disabled;
 
-        create_dir_all(&disabled_folder).map_err(|er| {
-            ModManagingError::FolderCreation(disabled_folder.to_path_buf(), er)
-        })?;
-
-        let new_path = disabled_folder.join(filename);
-        rename(file, &new_path)?;
-
-        updated_files.push(new_path);
+        let backup = the_mod.backups.iter().find(|b| same_path(&b.original, &active));
+        if let Some(backup) = backup.filter(|b| b.backup.exists()) {
+            move_file(tx, &backup.backup, &active)?;
+        }
     }
 
-    Ok(updated_files)
+    Ok(())
 }
 
-/// Determines the target directory and filename for enabling or disabling a file
-///
-/// # Arguments
-/// * `enabled` - `true` if target location is active folder (enabling), `false` for `.disabled/` (disabling)
-/// * `file` - Original path of the file
-///
-/// # Returns
-/// * [`Ok`]`((&str, PathBuf))` -> Tuple containing the filename and target directory path
-/// * [`Err`] -> [`ModManagingError`] if path component extraction fails
-fn get_toggled_folder<'a>(
-    enabled: bool,
-    file: &'a PathBuf,
-) -> Result<(&'a str, PathBuf), ModManagingError> {
-    let filename = get_filename_or_err(file)?;
-    
-    if enabled {
-        let enabled_folder = get_parent_or_err(&get_parent_or_err(file)?)?;
-
-        Ok((filename, enabled_folder.to_path_buf()))
-    } else {
-        let disabled_folder = get_parent_or_err(file)?.join(".disabled/");
-
-        Ok((filename, disabled_folder))
-    }
+/// [`Transaction::move_file`] with a descriptive error
+fn move_file(tx: &mut Transaction, from: &Path, to: &Path) -> Result<(), ModManagingError> {
+    tx.move_file(from, to).map_err(|source| ModManagingError::Moving {
+        from: from.to_path_buf(),
+        to: to.to_path_buf(),
+        source,
+    })
 }
