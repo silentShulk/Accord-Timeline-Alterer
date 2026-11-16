@@ -72,7 +72,7 @@ pub fn install_mod(
     let mod_data = get_mod_data(&mut mod_folder_path)?
         .ok_or(InstallationError::ModlessFolder(mod_folder_path.clone()))?;
 
-    let conflicting_files = check_for_conflicts(HashSet::from(mod_data.keys()), data)?;
+    let conflicting_files = check_for_conflicts(mod_data.keys().collect::<HashSet<_>>(), data)?;
     let conflicts_present = !conflicting_files.is_empty();
     let should_warn = get_warning_necessity(settings.files_conflict_resolution, forced_overwrite);
 
