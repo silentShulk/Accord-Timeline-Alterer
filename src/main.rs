@@ -20,7 +20,7 @@ use ata::data::{mods::Mods, paths::PATHS, settings::Settings};
 use ata::features::{
     installation::install_mod,
     misc::launch_automata,
-    mod_managing::{disable_mod, enable_mod, list_mods},
+    mod_managing::{toggle_mod, list_mods},
     uninstallation::uninstall_mod,
 };
 
@@ -68,23 +68,16 @@ struct Args {
     #[arg(long = "list-mods", short = 'm', help = "List all installed mods")]
     list_mods: bool,
  
-    /// Move the mod's files back into the game directory so the game loads them
+    /// Move the mod's files into 
+    /// * hidden folder if it needs to be disabled
+    /// * folder for that type if it needs to be enabled
     #[arg(
-        long = "enable",
-        short = 'e',
+        long = "toggle",
+        short = 't',
         value_name = "NAME",
-        help = "Enable a mod by its name"
+        help = "Toggle a mod's enabled state by its name"
     )]
-    enable: Option<String>,
- 
-    /// Move the mod's files to a `.disabled/` subfolder so the game ignores them
-    #[arg(
-        long = "disable",
-        short = 'd',
-        value_name = "NAME",
-        help = "Disable a mod by its name"
-    )]
-    disable: Option<String>,
+    toggle: Option<String>,
  
     /// Update the setting identified by `NAME` to `VALUE` and persist the change
     #[arg(long="settings", short='s', value_names = ["NAME", "VALUE"],
@@ -154,20 +147,13 @@ fn main() {
         let sorted_mods = list_mods(&settings.sorting_order, &data.mods);
         print!("{}", json(&sorted_mods));
         // action = Action::ListingMods;
-    } else if let Some(name) = args.enable {
-        let enabled_mod = enable_mod(&mut data, name).unwrap_or_else(|er| {
-            eprintln!("Enable failed: {}", er);
+    } else if let Some(name) = args.toggle {
+        let toggled_mod = toggle_mod(&mut data, name.as_str()).unwrap_or_else(|er| {
+            eprintln!("Toggle failed: {}", er);
             std::process::exit(0);
         });
-        print!("{}", json(&[enabled_mod]));
-        // action = Action::Enabling;
-    } else if let Some(name) = args.disable {
-        let disabled_mod = disable_mod(&mut data, name).unwrap_or_else(|er| {
-            eprintln!("Disable failed: {}", er);
-            std::process::exit(0);
-        });
-        print!("{}", json(&[disabled_mod]));
-        // action = Action::Disabling;
+        print!("{}", json(&[toggled_mod]));
+        // action = Action::Toggling;
     } else if args.list_settings {
         print!("{}", json(&settings))
     } else if let Some(params) = args.settings {

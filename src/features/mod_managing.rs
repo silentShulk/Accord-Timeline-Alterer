@@ -23,71 +23,17 @@ use thiserror::Error;
 
 
 
-/// Moves a disabled mod's files back into the game's asset folder and marks it as enabled
-///
-/// For each file currently stored in a `.disabled/` subdirectory, this function
-/// moves it one level up to the parent game asset folder and records the new path.
-/// After all files are moved, [`Data::switch_mod_state`] is called to toggle the
-/// `enabled` flag and persist the updated paths to the data file.
-///
-/// # Arguments
-/// * `data` - Mutable reference to the current [`Data`] state
-/// * `mod_name` - Name of the mod to enable
-///
-/// # Returns
-/// * [`Ok`] -> A clone of the now-enabled [`Mod`]
-/// * [`Err`] -> The type of error that occurred
-///
-/// # Errors
-/// * [`ModManagingError::DataSaving`] if no mod with `mod_name` exists, or the data file could not be updated
-/// * [`ModManagingError::AlreadyEnabled`] if the mod is already enabled
-/// * [`ModManagingError::FilesInteraction`] if a stored file path has no name/parent
-/// * [`ModManagingError::Renaming`] if a file could not be moved
-pub fn enable_mod(data: &mut Mods, mod_name: String) -> Result<Mod, ModManagingError> {
-    let mod_to_enable = data.get_mod_by_name(&mod_name)?;
-    if mod_to_enable.1.enabled {
-        return Err(ModManagingError::AlreadyEnabled(mod_name));
-    }
+pub fn toggle_mod(data: &mut Mods, mod_name: &str) -> Result<Mod, ModManagingError> {
+    let mod_to_toggle = data.get_mod_by_name(mod_name)?;
 
-    let updated_files = toggle_files_state(mod_to_enable.1)?;
+    let updated_files = match mod_to_toggle.1.enabled {
+        true => disable_files(mod_to_toggle.1.files)?,
+        false => enable_files(mod_to_toggle.1.files)?,
+    };
 
-    data.switch_mod_state(mod_to_enable.0, updated_files)?;
+    data.switch_mod_state(mod_to_toggle.0, updated_files)?;
 
-    Ok(data.mods[mod_to_enable.0].clone())
-}
-
-/// Moves an enabled mod's files into a `.disabled/` subdirectory and marks it as disabled
-///
-/// For each file currently in the game's asset folder, this function creates a
-/// `.disabled/` subdirectory alongside it (if it does not already exist), moves
-/// the file there, and records the new path. After all files are moved,
-/// [`Data::switch_mod_state`] is called to toggle the `enabled` flag and persist
-/// the updated paths to the data file.
-///
-/// # Arguments
-/// * `data` - Mutable reference to the current [`Data`] state
-/// * `mod_name` - Name of the mod to disable
-///
-/// # Returns
-/// * [`Ok`] -> A clone of the now-disabled [`Mod`]
-/// * [`Err`] -> The type of error that occurred
-///
-/// # Errors
-/// * [`ModManagingError::DataSaving`] if no mod with `mod_name` exists, or the data file could not be updated
-/// * [`ModManagingError::AlreadyDisabled`] if the mod is already disabled
-/// * [`ModManagingError::FilesInteraction`] if a stored file path has no name/parent
-/// * [`ModManagingError::FolderCreation`] if the `.disabled/` directory could not be created
-/// * [`ModManagingError::Renaming`] if a file could not be moved
-pub fn disable_mod(data: &mut Mods, mod_name: String) -> Result<Mod, ModManagingError> {
-    let mod_to_disable = data.get_mod_by_name(&mod_name)?;
-    if !mod_to_disable.1.enabled {
-        return Err(ModManagingError::AlreadyDisabled(mod_name));
-    }
-    let updated_files = toggle_files_state(mod_to_disable.1)?;
-
-    data.switch_mod_state(mod_to_disable.0, updated_files)?;
-
-    Ok(data.mods[mod_to_disable.0].clone())
+    Ok(data.mods[mod_to_toggle.0].clone())
 }
 
 /// Returns a copy of the mods vector sorted according to the requested [`SortingOrder`]
@@ -127,33 +73,9 @@ pub enum ModManagingError {
     #[error("Couldn't update data file (data.json found inside data dir of OS). {0}")]
     DataSaving(#[from] DataInteractionError),
 
-    /// The requested mod is already enabled
-    #[error("\"{0}\" is already enabled")]
-    AlreadyEnabled(String),
-
-    /// The requested mod is already disabled
-    #[error("\"{0}\" is already disabled")]
-    AlreadyDisabled(String),
-
     /// A path component of a stored file could not be extracted
     #[error("An error occurred while interacting with files. {0}")]
     FilesInteraction(#[from] FilesInteractionError),
-}
-
-/// Dispatches a mod to be enabled or disabled depending on its current state
-///
-/// # Arguments
-/// * `mod_to_enable` - The mod whose files should be toggled
-///
-/// # Returns
-/// * [`Ok`] -> List of updated [`PathBuf`]s after moving
-/// * [`Err`] -> [`EnablingDisablingError`] if file moving fails
-fn toggle_files_state(mod_to_enable: Mod) -> Result<Vec<PathBuf>, ModManagingError> {
-    if mod_to_enable.enabled {
-        disable_files(mod_to_enable.files)
-    } else {
-        enable_files(mod_to_enable.files)
-    }
 }
 
 /// Moves files from `.disabled/` subdirectories back up into their parent active folders

@@ -397,7 +397,7 @@ impl TryFrom<(&str, &str)> for ModType {
             ("dtt" | "dat", "wp") => Ok(ModType::WeaponModels),
             ("dtt" | "dat", "bg") => Ok(ModType::WorldModels),
             ("usm", _) => Ok(ModType::CutsceneReplacements),
-            ("ini", _) => Ok(ModType::ReshadePreset),
+            ("fx", _) => Ok(ModType::ReshadePreset),
             (ext, _) => Err(DataInteractionError::InvalidModTypeExtension(
                 ext.to_string(),
             )),
@@ -411,12 +411,18 @@ impl TryFrom<HashSet<ModType>> for ModType {
     fn try_from(mod_types: HashSet<ModType>) -> Result<Self, DataInteractionError> {
         if mod_types.len() == 1 {
             Ok(mod_types.into_iter().next().unwrap())
+        } else if mod_types.contains(&ModType::DLL) {
+            Ok(ModType::DLL)
         } else if mod_types.contains(&ModType::PlayerModels) {
             Ok(ModType::PlayerModels)
         } else if mod_types.contains(&ModType::WeaponModels) {
             Ok(ModType::WeaponModels)
         } else if mod_types.contains(&ModType::WorldModels) {
             Ok(ModType::WorldModels)
+        } else if mod_types.contains(&ModType::CutsceneReplacements) {
+            Ok(ModType::CutsceneReplacements)
+        } else if mod_types.contains(&ModType::ReshadePreset) {
+            Ok(ModType::ReshadePreset)
         } else {
             Err(DataInteractionError::UnclearModType)
         }
