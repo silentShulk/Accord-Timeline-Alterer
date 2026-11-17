@@ -16,19 +16,13 @@
 //!
 //! Main function: [`main`]
 
-mod data;
-mod features;
-mod utils;
-use data::{mods, settings, paths};
-use features::{installation, uninstallation, mod_managing, misc};
-
-use paths::PATHS;
-use mods::Mods;
-use settings::Settings;
-use uninstallation::uninstall_mod;
-use mod_managing::{disable_mod, enable_mod, list_mods};
-use installation::install_mod;
-use misc::{/*update_discord_rich_presence, Action,*/ launch_automata};
+use ata::data::{mods::Mods, paths::PATHS, settings::Settings};
+use ata::features::{
+    installation::install_mod,
+    misc::launch_automata,
+    mod_managing::{disable_mod, enable_mod, list_mods},
+    uninstallation::uninstall_mod,
+};
 
 use std::path::PathBuf;
 

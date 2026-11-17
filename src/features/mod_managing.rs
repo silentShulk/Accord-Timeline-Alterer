@@ -6,15 +6,15 @@
 //! data file so ATA always knows where to find every mod.
 //!
 //! This includes:
+//! * **listing**: Sorting tracked mods according to user preferences
 //! * **enabling**: Moving mod files from `.disabled/` back into the game's asset folder
 //! * **disabling**: Moving mod files out of the game's asset folder into `.disabled/`
-//! * **listing**: Sorting tracked mods according to user preferences
 //!
-//! Main functions: [`enable_mod`], [`disable_mod`]
+//! API functions: [`enable_mod`], [`disable_mod`], [`list_mods`]
 
 use crate::utils::files::{get_filename_or_err, get_parent_or_err, FilesInteractionError};
-use crate::mods::{Mods, DataInteractionError, Mod};
-use crate::settings::SortingOrder;
+use crate::data::mods::{Mods, DataInteractionError, Mod};
+use crate::data::settings::SortingOrder;
 
 use std::fs::{create_dir_all, rename};
 use std::path::PathBuf;
@@ -90,6 +90,28 @@ pub fn disable_mod(data: &mut Mods, mod_name: String) -> Result<Mod, ModManaging
     Ok(data.mods[mod_to_disable.0].clone())
 }
 
+/// Returns a copy of the mods vector sorted according to the requested [`SortingOrder`]
+///
+/// # Arguments
+/// * `sorting_order` - Criterion used to sort the mod list
+/// * `mods` - Reference to the slice of [`Mod`]s to sort
+///
+/// # Returns
+/// * A [`Vec<Mod>`] sorted based on `sorting_order`
+pub fn list_mods(sorting_order: &SortingOrder, mods: &[Mod]) -> Vec<Mod> {
+    let mut sorted_mods: Vec<Mod> = mods.to_vec();
+
+    match sorting_order {
+        SortingOrder::ModType => sorted_mods.sort_unstable_by_key(|m| m.mod_type),
+        SortingOrder::InstallDate => (),
+        SortingOrder::EnableStatus => sorted_mods.sort_unstable_by_key(|m| m.enabled),
+        SortingOrder::Alphabetical => sorted_mods.sort_unstable_by_key(|m| m.name.clone()),
+        SortingOrder::Size => sorted_mods.sort_unstable_by_key(|m| m.files.len()),
+    };
+
+    sorted_mods
+}
+
 /// Errors that could occur while enabling or disabling a mod
 #[derive(Error, Debug)]
 pub enum ModManagingError {
@@ -116,28 +138,6 @@ pub enum ModManagingError {
     /// A path component of a stored file could not be extracted
     #[error("An error occurred while interacting with files. {0}")]
     FilesInteraction(#[from] FilesInteractionError),
-}
-
-/// Returns a copy of the mods vector sorted according to the requested [`SortingOrder`]
-///
-/// # Arguments
-/// * `sorting_order` - Criterion used to sort the mod list
-/// * `mods` - Reference to the slice of [`Mod`]s to sort
-///
-/// # Returns
-/// * A [`Vec<Mod>`] sorted based on `sorting_order`
-pub fn list_mods(sorting_order: &SortingOrder, mods: &[Mod]) -> Vec<Mod> {
-    let mut sorted_mods: Vec<Mod> = mods.to_vec();
-
-    match sorting_order {
-        SortingOrder::ModType => sorted_mods.sort_unstable_by_key(|m| m.mod_type),
-        SortingOrder::InstallDate => (),
-        SortingOrder::EnableStatus => sorted_mods.sort_unstable_by_key(|m| m.enabled),
-        SortingOrder::Alphabetical => sorted_mods.sort_unstable_by_key(|m| m.name.clone()),
-        SortingOrder::Size => sorted_mods.sort_unstable_by_key(|m| m.files.len()),
-    };
-
-    sorted_mods
 }
 
 /// Dispatches a mod to be enabled or disabled depending on its current state

@@ -88,6 +88,7 @@ pub fn get_extension_or_err(path: &Path) -> Result<&str, FilesInteractionError> 
 pub fn expand_path(value: &str) -> Result<PathBuf, FilesInteractionError> {
     let expanded = full(value)
         .map_err(|e| FilesInteractionError::EnvExpansion(value.to_string(), e.to_string()))?;
+    
     Ok(PathBuf::from(expanded.as_ref()))
 }
 

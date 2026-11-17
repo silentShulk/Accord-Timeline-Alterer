@@ -6,11 +6,11 @@
 //! * **installing the mod**: Moves the files found to be of the mod in the folder in which that mod type goes
 //! * **updates the saved data**: Adds the newly installed mod to the data file (*~/.config/ATA/data.json*)
 //!
-//! Main function: [`install_mod`]
+//! API function: [`install_mod`]
 
 use crate::utils::files::{get_extension_or_err, get_filename_or_err, get_filestem_or_err, get_parent_or_err, FilesInteractionError};
-use crate::mods::{Mods, DataInteractionError, Mod, ModType};
-use crate::settings::{ConflictResolution, Settings};
+use crate::data::mods::{Mods, DataInteractionError, Mod, ModType};
+use crate::data::settings::{ConflictResolution, Settings};
 
 use std::fs::{File, copy, create_dir_all};
 use std::path::{Path, PathBuf};
@@ -95,13 +95,10 @@ pub fn install_mod(
             data.save_new_mod(&installed_mod)?;
 
             if !settings.keep_extracted_folders {
-                if let Err(cleanup_err) = std::fs::remove_dir_all(&mod_folder_path) {
-                    eprintln!(
-                        "Couldn't remove extracted temp folder '{}'. {}",
-                        mod_folder_path.display(),
-                        cleanup_err
-                    );
-                }
+                // Best-effort cleanup: the mod is already installed and registered, so a
+                // leftover temp folder is not worth failing the whole installation over.
+                // (A library shouldn't print, a GUI has no stderr to show it on.)
+                let _ = std::fs::remove_dir_all(&mod_folder_path);
             }
 
             Ok(installed_mod)
@@ -302,12 +299,9 @@ pub fn get_mod_data(
             continue;
         }
 
-        let extension = match get_extension_or_err(entry_path) {
-            Ok(ext) => ext,
-            Err(err) => {
-                eprintln!("{}", err);
-                continue;
-            }
+        // Files without a usable extension can't be mod files, so skip them quietly
+        let Ok(extension) = get_extension_or_err(entry_path) else {
+            continue;
         };
         if !ModType::all_extensions().contains(extension) {
             continue;

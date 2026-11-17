@@ -5,9 +5,9 @@
 //! * **deleting**: Removing every file that belongs to the mod from disk
 //! * **updating the saved data**: Removing the mod entry from the data file
 //!
-//! Main function: [`uninstall_mod`]
+//! API function: [`uninstall_mod`]
 
-use crate::mods::{Mods, DataInteractionError, Mod};
+use crate::data::mods::{Mods, DataInteractionError, Mod};
 
 use std::fs::remove_file;
 use std::path::PathBuf;

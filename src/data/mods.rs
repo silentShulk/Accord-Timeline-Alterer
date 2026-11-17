@@ -12,7 +12,7 @@
 //!
 //! Main type: [`Data`]
 
-use crate::paths::PATHS;
+use crate::data::paths::PATHS;
 use crate::utils::files::{expand_path, FilesInteractionError};
 use crate::utils::json::{JsonParsingError, load_json, save_json};
 
@@ -78,7 +78,7 @@ impl Mods {
     ///
     /// # Panics
     /// Panics if `conflicts_list` references a mod name not present in [`Data::mods`].
-    /// Callers must build `conflicts_list` from this same [`Data`] instance (see [`crate::installation::check_for_conflicts`])
+    /// Callers must build `conflicts_list` from this same [`Data`] instance (see [`crate::features::installation::check_for_conflicts`])
     /// so the invariant always holds in practice.
     pub fn remove_conflicts(&mut self, conflicts_list: &HashMap<PathBuf, String>) {
         for conflict in conflicts_list {

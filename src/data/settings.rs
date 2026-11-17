@@ -11,7 +11,7 @@
 //!
 //! Main type: [`Settings`]
 
-use crate::paths::PATHS;
+use crate::data::paths::PATHS;
 use crate::utils::files::{expand_path, FilesInteractionError};
 use crate::utils::json::{JsonParsingError, load_json, save_json};
 
@@ -163,7 +163,7 @@ impl FromStr for Palette {
 /// The order in which installed mods are displayed in the list view
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Default)]
 pub enum SortingOrder {
-    /// Group mods by their [`crate::data::ModType`] (default)
+    /// Group mods by their [`crate::data::mods::ModType`] (default)
     #[default]
     ModType,
     /// Sort mods from newest to oldest install date
