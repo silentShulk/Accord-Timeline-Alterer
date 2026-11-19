@@ -216,7 +216,7 @@ impl Mod {
     /// # Returns
     /// * A fully populated [`Mod`] instance with a generated [`Mod::uid`]
     pub fn new(
-        name: String,
+        name: &str,
         files: Vec<PathBuf>,
         enabled: bool,
         mod_type: ModType,
@@ -224,7 +224,7 @@ impl Mod {
     ) -> Self {
         Self {
             uid: Self::get_uid(&name, &mod_type, &install_date),
-            name,
+            name: name.to_string(),
             files,
             enabled,
             mod_type,
@@ -298,7 +298,7 @@ impl ModType {
     /// * `data/bg/` or `data/misctex/` for world models
     /// * `data/movie/` for cutscene replacements
     /// * empty path for reshade presets & DLL mods (game root)
-    pub fn get_corresponding_folder(&self, mod_name: &String, prefix: &str) -> PathBuf {
+    pub fn get_corresponding_folder(&self, mod_name: &str, prefix: &str) -> PathBuf {
         match self {
             ModType::DLL => PathBuf::new(),
             ModType::Textures => PathBuf::from("wax").join("mods").join(mod_name),

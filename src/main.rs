@@ -125,7 +125,7 @@ fn main() {
         let overwrite = args.overwrite;
         let installed_mod = install_mod(
             &PathBuf::from(&params[0]),
-            params[1].clone(),
+            params[1].as_str(),
             overwrite,
             &settings,
             &mut data,

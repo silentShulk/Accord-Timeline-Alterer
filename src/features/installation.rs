@@ -53,7 +53,7 @@ use chrono::Utc;
 /// * [`InstallationError::Data`] if mod data cannot be saved to the data file
 pub fn install_mod(
     compressed_mod_folder_path: &Path,
-    answered_name: String,
+    answered_name: &str,
     forced_overwrite: bool,
     settings: &Settings,
     data: &mut Mods,
@@ -64,7 +64,7 @@ pub fn install_mod(
         ));
     }
     if data.name_exists(&answered_name) {
-        return Err(InstallationError::NameAlreadyExists(answered_name));
+        return Err(InstallationError::NameAlreadyExists(answered_name.to_string()));
     }
 
     let mut mod_folder_path = decompress_folder(&compressed_mod_folder_path)?;
@@ -85,7 +85,7 @@ pub fn install_mod(
                 &settings.game_path,
             )?;
             let installed_mod = Mod::new(
-                answered_name.clone(),
+                answered_name,
                 installed_files,
                 true,
                 ModType::try_from(mod_data.into_values().collect::<HashSet<_>>())?,
@@ -416,7 +416,7 @@ fn should_install(data: &mut Mods, conflicting_files: &HashMap<PathBuf, String>,
 /// * [`InstallationError::FilesInteraction`] if a source filename cannot be extracted
 fn install(
     mod_files: &HashMap<PathBuf, ModType>,
-    mod_name: &String,
+    mod_name: &str,
     game_path: &PathBuf,
 ) -> Result<Vec<PathBuf>, InstallationError> {
     let mut copied_files = vec![];
