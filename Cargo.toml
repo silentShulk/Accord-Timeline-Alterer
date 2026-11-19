@@ -19,7 +19,7 @@ default = ["cli"]
 cli = ["dep:clap"]
 
 [dependencies]
-chrono = {version="0.4.44", features=["serde"]}
+chrono = {version="0.4.45", features=["serde"]}
 clap = { version="4.5.54", features=["derive"], optional = true }
 dirs = "6.0.0"
 discord-rich-presence = "1.1.0"
@@ -27,6 +27,7 @@ serde = { version="1.0.228", features=["derive"] }
 serde_json = "1.0.150"
 sevenz-rust = "0.6.1"
 shellexpand = "3.1.2"
+specta = { version = "=2.0.0-rc.25", features = ["chrono", "derive"] }
 strum = { version="0.28.0", features=["derive"] }
 target = "2.1.0"
 thiserror = "2.0.18"

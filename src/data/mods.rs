@@ -24,11 +24,12 @@ use thiserror::Error;
 use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
 use strum::{EnumIter, IntoEnumIterator};
+use specta::Type;
 
 
 
 /// Holds the runtime state of ATA: the full list of installed mods
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Type)]
 pub struct Mods {
     /// List of all mods currently tracked by ATA
     pub mods: Vec<Mod>,
@@ -187,7 +188,7 @@ pub enum DataInteractionError {
 }
 
 /// Everything ATA needs to track about an installed mod
-#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug, PartialOrd, Ord, Hash)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug, PartialOrd, Ord, Hash, Type)]
 pub struct Mod {
     /// Name of the mod given by the user
     pub name: String,
@@ -258,7 +259,7 @@ impl Mod {
 ///
 /// Mod types not currently supported are not generic, but mod-specific (like NAIOM)
 #[derive(
-    Serialize, Deserialize, Clone, PartialEq, Eq, Debug, PartialOrd, Ord, Copy, Hash, EnumIter,
+    Serialize, Deserialize, Clone, PartialEq, Eq, Debug, PartialOrd, Ord, Copy, Hash, EnumIter, Type
 )]
 pub enum ModType {
     /// `DLL` mods are unique mods
