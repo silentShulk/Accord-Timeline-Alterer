@@ -286,7 +286,7 @@ fn decompress_rar(
 /// # Errors
 /// * [`InstallationError::EntryReading`] if reading directory entries fails
 /// * [`InstallationError::FilesInteraction`] if a recognized entry's filename cannot be extracted
-pub fn get_mod_data(
+fn get_mod_data(
     mod_folder_path: &Path,
 ) -> Result<Option<HashMap<PathBuf, ModType>>, InstallationError> {
     let mut mod_files: HashMap<PathBuf, ModType> = HashMap::new();
