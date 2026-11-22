@@ -13,7 +13,7 @@
 
 use crate::data::paths::PATHS;
 use crate::utils::files::{expand_path, FilesInteractionError};
-use crate::utils::json::{JsonParsingError, load_json, save_json};
+use crate::utils::json::{JsonParsingError, load_json, save_json, deserialize_expanded_path};
 
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -33,14 +33,15 @@ pub struct Settings {
     pub palette: Palette,
     /// Order in which mods are shown in the list view
     pub sorting_order: SortingOrder,
-
     /// How to handle file conflicts when installing a mod
     pub files_conflict_resolution: ConflictResolution,
     /// Whether to keep the extracted temporary folder after a successful installation
     pub keep_extracted_folders: bool,
     /// Filesystem path where extracted temporary folders are stored
+    #[serde(deserialize_with = "deserialize_expanded_path")]
     pub extracted_folders_location: PathBuf,
     /// Absolute path to the game's installation folder
+    #[serde(deserialize_with = "deserialize_expanded_path")]
     pub game_path: PathBuf,
 
     /// Discord Rich Presence application ID; empty string means Rich Presence is disabled
@@ -60,13 +61,7 @@ impl Settings {
     /// * [`SettingsInteractionError::FilesInteraction`] if a shell variable in a path cannot be resolved
     /// * [`SettingsInteractionError::Json`] if the settings file cannot be opened, read, or parsed
     pub fn load_settings() -> Result<Self, SettingsInteractionError> {
-        let mut contents: Settings = load_json(&PATHS.settings_file)?;
-
-        for path in [&mut contents.game_path, &mut contents.extracted_folders_location] {
-            *path = expand_path(&path.to_string_lossy())?;
-        }
-
-        Ok(contents)
+        Ok(load_json(&PATHS.settings_file)?)
     }
 
     /// Parses `value`, applies it to the setting identified by `setting`, and persists the change
@@ -89,11 +84,11 @@ impl Settings {
     /// * [`SettingsInteractionError::Json`] if the settings file cannot be written
     pub fn update_setting(
         &mut self,
-        setting: String,
-        value: String,
+        setting: &str,
+        value: &str,
     ) -> Result<Settings, SettingsInteractionError> {
-        match setting.as_str() {
-            "style" => self.style = value,
+        match setting {
+            "style" => self.style = value.to_string(),
             "palette" => self.palette = value.parse::<Palette>()?,
             "sortingOrder" => self.sorting_order = value.parse::<SortingOrder>()?,
             "filesConflictResolution" => {
@@ -102,12 +97,12 @@ impl Settings {
             "keepExtractedFolders" => {
                 self.keep_extracted_folders = value
                     .parse::<bool>()
-                    .map_err(|_| SettingsInteractionError::InvalidSettingValue(value.clone()))?
+                    .map_err(|_| SettingsInteractionError::InvalidSettingValue(value.to_string()))?
             }
             "extractedFoldersLocation" => self.extracted_folders_location = expand_path(&value)?,
             "gamePath" => self.game_path = expand_path(&value)?,
-            "discordRichPresence" => self.discord_rich_presence = value,
-            _ => return Err(SettingsInteractionError::InvalidSettingName(setting)),
+            "discordRichPresence" => self.discord_rich_presence = value.to_string(),
+            _ => return Err(SettingsInteractionError::InvalidSettingName(setting.to_string())),
         };
 
         save_json(&PATHS.settings_file, &self)?;

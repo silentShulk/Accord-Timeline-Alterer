@@ -7,15 +7,34 @@
 //!
 //! Main functions: [`load_json`], [`save_json`]
 
+use crate::utils::files::expand_path;
+
 use std::fs::File;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::io::BufReader;
 
 use thiserror::Error;
 use serde::de::DeserializeOwned;
-use serde::Serialize;
+use serde::{Deserialize, Deserializer, Serialize};
 
 
+
+/// Serializes `value` to a compact JSON string and returns it
+///
+/// Panics if `value` cannot be serialized — this should never happen for
+/// the types used in this codebase.
+///
+/// # Arguments
+/// * `value` - Any value that implements [`serde::Serialize`]
+///
+/// # Returns
+/// * A [`String`] containing the compact JSON representation of `value`
+pub fn json<T>(value: &T) -> String
+where
+    T: serde::Serialize,
+{
+    serde_json::to_string(value).unwrap()
+}
 
 /// Reads `path` and deserializes its contents into `T`
 ///
@@ -48,6 +67,24 @@ pub fn save_json<T: Serialize>(path: &Path, json_contents: &T) -> Result<(), Jso
     serde_json::to_writer_pretty(json_file, json_contents)?;
 
     Ok(())
+}
+
+/// Deserializes a string path and expands it (e.g., resolving `~` or environment variables) into a [`PathBuf`][cite: 1]
+///
+/// Intended for use with `#[serde(deserialize_with = "deserialize_expanded_path")]` on struct fields.
+///
+/// # Arguments
+/// * `deserializer` - The Serde [`Deserializer`] providing the raw path string[cite: 1]
+///
+/// # Returns
+/// * [`Ok`] -> The expanded [`PathBuf`][cite: 1]
+/// * [`Err`] -> `D::Error` if deserializing the string fails or [`expand_path`] returns an error[cite: 1]
+pub fn deserialize_expanded_path<'de, D>(deserializer: D) -> Result<PathBuf, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let raw = String::deserialize(deserializer)?;
+    expand_path(&raw).map_err(serde::de::Error::custom)
 }
 
 /// Errors that could occur while reading or writing a JSON file

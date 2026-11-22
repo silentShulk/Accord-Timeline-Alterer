@@ -52,31 +52,31 @@ use chrono::Utc;
 /// * [`InstallationError::FileConflict`] if file conflicts are detected and overwriting is disabled
 /// * [`InstallationError::Data`] if mod data cannot be saved to the data file
 pub fn install_mod(
-    compressed_mod_folder_path: &Path,
+    mod_archive_path: &Path,
     answered_name: &str,
-    forced_overwrite: bool,
+    overwrite_flag: bool,
     settings: &Settings,
-    data: &mut Mods,
+    mods: &mut Mods,
 ) -> Result<Mod, InstallationError> {
-    if !compressed_mod_folder_path.exists() {
+    if !mod_archive_path.exists() {
         return Err(InstallationError::ModArchiveNotFound(
-            compressed_mod_folder_path.to_path_buf(),
+            mod_archive_path.to_path_buf(),
         ));
     }
-    if data.name_exists(&answered_name) {
+    if mods.name_exists(&answered_name) {
         return Err(InstallationError::NameAlreadyExists(answered_name.to_string()));
     }
 
-    let mut mod_folder_path = decompress_folder(&compressed_mod_folder_path)?;
+    let mut mod_folder_path = decompress_folder(&mod_archive_path)?;
 
     let mod_data = get_mod_data(&mut mod_folder_path)?
         .ok_or(InstallationError::ModlessFolder(mod_folder_path.clone()))?;
 
-    let conflicting_files = check_for_conflicts(mod_data.keys().collect::<HashSet<_>>(), data)?;
+    let conflicting_files = check_for_conflicts(mod_data.keys().collect::<HashSet<_>>(), mods)?;
     let conflicts_present = !conflicting_files.is_empty();
-    let should_warn = get_warning_necessity(settings.files_conflict_resolution, forced_overwrite);
+    let should_warn = get_warning_necessity(settings.files_conflict_resolution, overwrite_flag);
 
-    match should_install(data, &conflicting_files, conflicts_present, should_warn) {
+    match should_install(mods, &conflicting_files, conflicts_present, should_warn) {
         false => Err(InstallationError::FileConflict(conflicting_files)),
         true => {
             let installed_files = install(
@@ -92,7 +92,7 @@ pub fn install_mod(
                 Utc::now(),
             );
 
-            data.save_new_mod(&installed_mod)?;
+            mods.save_new_mod(&installed_mod)?;
 
             if !settings.keep_extracted_folders {
                 // Best-effort cleanup: the mod is already installed and registered, so a

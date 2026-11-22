@@ -29,12 +29,12 @@ use thiserror::Error;
 /// # Errors
 /// * [`UninstallationError::DataSaving`] if no mod with `mod_name` exists, or the data file could not be updated
 /// * [`UninstallationError::FileDeletion`] if one of the mod's files could not be removed from disk
-pub fn uninstall_mod(config: &mut Mods, mod_name: String) -> Result<Mod, UninstallationError> {
-    let mod_to_uninstall = config.get_mod_by_name(&mod_name)?;
+pub fn uninstall_mod(mod_name: &str, mods: &mut Mods) -> Result<Mod, UninstallationError> {
+    let mod_to_uninstall = mods.get_mod_by_name(&mod_name)?;
 
     remove_mod_files(&mod_to_uninstall.1.files)?;
 
-    config
+    mods
         .remove_mod(mod_to_uninstall.0)
         .map_err(UninstallationError::DataSaving)?;
 

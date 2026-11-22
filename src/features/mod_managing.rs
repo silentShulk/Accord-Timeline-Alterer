@@ -23,7 +23,28 @@ use thiserror::Error;
 
 
 
-pub fn toggle_mod(data: &mut Mods, mod_name: &str) -> Result<Mod, ModManagingError> {
+/// Toggles a mod between enabled and disabled by moving its files and persisting the new state
+///
+/// If the mod is currently enabled, its files are moved into a `.disabled/` subdirectory
+/// next to them (see [`disable_files`]). If it is currently disabled, they are moved back
+/// one level up into the game's asset folder (see [`enable_files`]). After all files are
+/// moved, [`Mods::switch_mod_state`] is called to flip the `enabled` flag and persist the
+/// updated paths to the data file.
+///
+/// # Arguments
+/// * `data` - Mutable reference to the current [`Mods`] state
+/// * `mod_name` - Name of the mod to toggle
+///
+/// # Returns
+/// * [`Ok`] -> A clone of the [`Mod`] after its state has been toggled
+/// * [`Err`] -> The type of error that occurred
+///
+/// # Errors
+/// * [`ModManagingError::DataSaving`] if no mod with `mod_name` exists, or if the data file could not be updated
+/// * [`ModManagingError::FilesInteraction`] if a stored file path has no filename or no parent
+/// * [`ModManagingError::FolderCreation`] if the `.disabled/` directory could not be created (disabling only)
+/// * [`ModManagingError::Renaming`] if a file could not be moved
+pub fn toggle_mod(mod_name: &str, data: &mut Mods) -> Result<Mod, ModManagingError> {
     let mod_to_toggle = data.get_mod_by_name(mod_name)?;
 
     let updated_files = match mod_to_toggle.1.enabled {

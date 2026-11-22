@@ -16,183 +16,88 @@
 //!
 //! Main function: [`main`]
 
+mod cli;
+use cli::{Args, Command};
 use ata::data::{mods::Mods, paths::PATHS, settings::Settings};
-use ata::features::{
-    installation::install_mod,
-    misc::launch_automata,
-    mod_managing::{toggle_mod, list_mods},
-    uninstallation::uninstall_mod,
+use ata::{
+    features::{
+        installation::install_mod,
+        misc::launch_automata,
+        mod_managing::{toggle_mod, list_mods},
+        uninstallation::uninstall_mod,
+    },
+    utils::json::json
 };
-
-use std::path::PathBuf;
 
 use clap::Parser;
 
 
- 
-/// CLI argument definitions for ATA
-///
-/// Exactly one primary action flag should be provided per invocation.
-/// Clap validates argument counts and generates `--help` output automatically.
-#[derive(Parser)]
-#[command(
-    name = "ATA",
-    version = "0.01",
-    about = "Accord's Timeline Alterer, the cross-platform NieR Automata mod manager"
-)]
-struct Args {
-    /// Install a mod from a compressed archive at `PATH` and register it under `NAME`
-    #[arg(long = "install", short='i', num_args = 2, value_names = ["PATH", "NAME"],
-        help="Install a mod from a given path with a specified name")]
-    install: Option<Vec<String>>,
- 
-    /// Forces any older conflicting mod file to be overwritten during installation
-    #[arg(
-        long = "overwrite",
-        short = 'o',
-        help = "Forces any older conflicting file to be overwritten",
-        requires = "install"
-    )]
-    overwrite: bool,
- 
-    /// Uninstall the mod registered under `NAME`, removing its files from the game directory
-    #[arg(
-        long = "uninstall",
-        short = 'u',
-        value_name = "NAME",
-        help = "Uninstall a mod by its name"
-    )]
-    uninstall: Option<String>,
- 
-    /// Print all installed mods as a JSON array and exit
-    #[arg(long = "list-mods", short = 'm', help = "List all installed mods")]
-    list_mods: bool,
- 
-    /// Move the mod's files into 
-    /// * hidden folder if it needs to be disabled
-    /// * folder for that type if it needs to be enabled
-    #[arg(
-        long = "toggle",
-        short = 't',
-        value_name = "NAME",
-        help = "Toggle a mod's enabled state by its name"
-    )]
-    toggle: Option<String>,
- 
-    /// Update the setting identified by `NAME` to `VALUE` and persist the change
-    #[arg(long="settings", short='s', value_names = ["NAME", "VALUE"],
-        help="Path to the settings file")]
-    settings: Option<Vec<String>>,
- 
-    /// Print all settings and their current values as JSON
-    #[arg(
-        long = "list-settings",
-        short = 'l',
-        help = "List all settings and their values"
-    )]
-    list_settings: bool,
- 
-    /// Start NieR:Automata via Steam
-    #[arg(long = "automata", short = 'a', help = "Start NieR:Automata")]
-    automata: bool,
- 
-    /// List all internal application file paths used by ATA
-    #[arg(long = "files", short = 'f', help = "List all of ATA's files")]
-    files: bool,
-}
  
 /// Loads persisted state, dispatches to the requested subcommand, and prints the result as JSON
 ///
 /// Exits with a status code of `1` if loading data/settings fails, or `0` if a command fails execution.
 fn main() {
     let args = Args::parse();
-    // let mut action = Action::JustOpened;
- 
-    let mut data = Mods::load_data().unwrap_or_else(|er| {
+    let commands = args.get_command();
+    
+    let mut mods = Mods::load_data().unwrap_or_else(|er| {
         eprintln!("Problem loading data: {}", er);
-        std::process::exit(1);
+        std::process::exit(2);
     });
     let mut settings = Settings::load_settings().unwrap_or_else(|er| {
         eprintln!("Problem loading settings: {}", er);
-        std::process::exit(1);
+        std::process::exit(2);
     });
- 
-    // update_discord_rich_presence(&settings.discord_rich_presence, action).unwrap_or_else(|er| {
-    //     eprintln!("Problem using DRP: {}", er);
-    // });
- 
-    if let Some(params) = args.install {
-        let overwrite = args.overwrite;
-        let installed_mod = install_mod(
-            &PathBuf::from(&params[0]),
-            params[1].as_str(),
-            overwrite,
-            &settings,
-            &mut data,
-        )
-        .unwrap_or_else(|er| {
-            eprintln!("Install failed: {}", er);
-            std::process::exit(0);
-        });
-        print!("{}", json(&[installed_mod]));
-        // action = Action::Installing;
-    } else if let Some(name) = args.uninstall {
-        let uninstalled_mod = uninstall_mod(&mut data, name).unwrap_or_else(|er| {
-            eprintln!("Uninstall failed: {}", er);
-            std::process::exit(0);
-        });
-        print!("{}", json(&[uninstalled_mod]));
-        // action = Action::Uninstalling
-    } else if args.list_mods {
-        let sorted_mods = list_mods(&settings.sorting_order, &data.mods);
-        print!("{}", json(&sorted_mods));
-        // action = Action::ListingMods;
-    } else if let Some(name) = args.toggle {
-        let toggled_mod = toggle_mod(&mut data, name.as_str()).unwrap_or_else(|er| {
-            eprintln!("Toggle failed: {}", er);
-            std::process::exit(0);
-        });
-        print!("{}", json(&[toggled_mod]));
-        // action = Action::Toggling;
-    } else if args.list_settings {
-        print!("{}", json(&settings))
-    } else if let Some(params) = args.settings {
-        let changed_setting = settings
-            .update_setting(params[0].clone(), params[1].clone())
-            .unwrap_or_else(|er| {
-                eprintln!("Settings Change failed: {}", er);
-                std::process::exit(0);
+
+    match commands {
+        Some(Command::Install(mod_archive_path, answered_name, overwrite_flag)) => {
+            let installed_mod = install_mod(
+                mod_archive_path, answered_name, overwrite_flag, &settings, &mut mods
+            ).unwrap_or_else(|err| {
+                eprintln!("Install Failed: {}", err);
+                std::process::exit(1);
             });
-        print!("{}", json(&[changed_setting]));
-        // action = Action::ChangingSettings;
-    } else if args.automata {
-        launch_automata().unwrap_or_else(|er| eprintln!("Game failed to launch. {}", er));
-        print!("Game starting...");
-        // action = Action::Playing;
-    } else if args.files {
-        print!("{}", json(&*PATHS))
-    } else {
-        eprintln!("No command given");
+            println!("{}", json(&[installed_mod]));
+        },
+        Some(Command::Uninstall(mod_name)) => {
+            let uninstalled_mod = uninstall_mod(
+                mod_name, &mut mods
+            ).unwrap_or_else(|err| {
+                eprintln!("Uninstall Failed: {}", err);
+                std::process::exit(1);
+            });
+            println!("{}", json(&[uninstalled_mod]));
+        },
+        Some(Command::ListMods) => {
+            let listed_mods = list_mods(
+                &settings.sorting_order, &mut mods.mods
+            );
+            println!("{}", json(&[listed_mods]));
+        },
+        Some(Command::Toggle(mod_name)) => {
+            let toggled_mod = toggle_mod(
+                mod_name, &mut mods
+            ).unwrap_or_else(|err| {
+                eprintln!("Toggle Failed: {}", err);
+                std::process::exit(1);
+            });
+            println!("{}", json(&[toggled_mod]));
+        },
+        Some(Command::Setting(setting, value)) => {
+            let updated_settings = settings.update_setting(
+                setting, value
+            ).unwrap_or_else(|err| {
+                eprintln!("Install Failed: {}", err);
+                std::process::exit(1);
+            });
+            println!("{}", json(&[updated_settings]));
+        },
+        Some(Command::ListSettings) => print!("{}", json(&settings)),
+        Some(Command::Automata) => {
+            launch_automata().unwrap_or_else(|er| eprintln!("Game failed to launch. {}", er));
+            println!("Game starting...");
+        },
+        Some(Command::Paths) => print!("{}", json(&*PATHS)),
+        None => { eprintln!("No commands given!") }
     }
- 
-    // update_discord_rich_presence(&settings.discord_rich_presence, action).unwrap_or_else(|er| {
-    //     eprintln!("Problem using DRP: {}", er);
-    // });
-}
- 
-/// Serializes `value` to a compact JSON string and returns it
-///
-/// Panics if `value` cannot be serialized — this should never happen for
-/// the types used in this codebase.
-///
-/// # Arguments
-/// * `value` - Any value that implements [`serde::Serialize`]
-///
-/// # Returns
-/// * A [`String`] containing the compact JSON representation of `value`
-fn json<T>(value: &T) -> String
-where
-    T: serde::Serialize,
-{
-    serde_json::to_string(value).unwrap()
 }
