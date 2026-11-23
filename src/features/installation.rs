@@ -72,9 +72,9 @@ pub fn install_mod(
     let mod_data = get_mod_data(&mut mod_folder_path)?
         .ok_or(InstallationError::ModlessFolder(mod_folder_path.clone()))?;
 
-    let conflicting_files = check_for_conflicts(mod_data.keys().collect::<HashSet<_>>(), mods)?;
+    let conflicting_files = check_for_conflicts(mod_data.keys().map(PathBuf::as_path), mods)?;
     let conflicts_present = !conflicting_files.is_empty();
-    let should_warn = get_warning_necessity(settings.files_conflict_resolution, overwrite_flag);
+    let should_warn = get_warning_necessity(&settings.files_conflict_resolution, overwrite_flag);
 
     match should_install(mods, &conflicting_files, conflicts_present, should_warn) {
         false => Err(InstallationError::FileConflict(conflicting_files)),
@@ -189,10 +189,10 @@ fn decompress_folder(compressed_mod_folder: &Path) -> Result<PathBuf, Installati
         std::fs::remove_dir_all(&target_folder)?;
     }
 
-    match extension {
-        "zip" => decompress_zip(compressed_mod_folder, target_folder),
-        "7z" => decompress_7z(compressed_mod_folder, target_folder),
-        "rar" => decompress_rar(compressed_mod_folder, target_folder),
+    match extension.as_ref() {
+        "zip" => decompress_zip(compressed_mod_folder, target_folder.as_path()),
+        "7z" => decompress_7z(compressed_mod_folder, target_folder.as_path()),
+        "rar" => decompress_rar(compressed_mod_folder, target_folder.as_path()),
         _ => Err(InstallationError::UnsupportedCompression(
             compressed_mod_folder.to_path_buf(),
         )),
@@ -214,14 +214,14 @@ fn decompress_folder(compressed_mod_folder: &Path) -> Result<PathBuf, Installati
 /// * [`InstallationError::ZipExtracion`] if extraction fails
 fn decompress_zip(
     zipped_mod_folder: &Path,
-    zip_extraction_folder: PathBuf,
+    zip_extraction_folder: &Path,
 ) -> Result<PathBuf, InstallationError> {
     let zip_file = File::open(zipped_mod_folder)?;
     let mut zip_archive = zip::ZipArchive::new(zip_file)?;
 
     zip_archive.extract(&zip_extraction_folder)?;
 
-    Ok(zip_extraction_folder)
+    Ok(zip_extraction_folder.to_path_buf())
 }
 
 /// Decompresses a 7z archive
@@ -238,11 +238,11 @@ fn decompress_zip(
 /// * [`InstallationError::SevenZipExtraction`] if 7z extraction fails
 fn decompress_7z(
     sevzipped_mod_folder: &Path,
-    sevzip_extraction_folder: PathBuf,
+    sevzip_extraction_folder: &Path,
 ) -> Result<PathBuf, InstallationError> {
     sevenz_rust::decompress_file(sevzipped_mod_folder, &sevzip_extraction_folder)?;
 
-    Ok(sevzip_extraction_folder)
+    Ok(sevzip_extraction_folder.to_path_buf())
 }
 
 /// Decompresses a RAR archive
@@ -259,7 +259,7 @@ fn decompress_7z(
 /// * [`InstallationError::RarExtraction`] if RAR processing or extraction fails
 fn decompress_rar(
     rared_mod_folder: &Path,
-    rar_extraction_folder: PathBuf,
+    rar_extraction_folder: &Path,
 ) -> Result<PathBuf, InstallationError> {
     let mut rar_archive = unrar::Archive::new(rared_mod_folder).open_for_processing()?;
 
@@ -271,7 +271,7 @@ fn decompress_rar(
         };
     }
 
-    Ok(rar_extraction_folder)
+    Ok(rar_extraction_folder.to_path_buf())
 }
 
 /// Inspects extracted files to infer their mod type and filter relevant asset files
@@ -303,13 +303,13 @@ fn get_mod_data(
         let Ok(extension) = get_extension_or_err(entry_path) else {
             continue;
         };
-        if !ModType::all_extensions().contains(extension) {
+        if !ModType::all_extensions().contains(&extension) {
             continue;
         }
 
         let prefix: String = get_filename_or_err(entry_path)?.chars().take(2).collect();
 
-        if let Ok(entry_mod_type) = ModType::try_from((extension, prefix.as_ref())) {
+        if let Ok(entry_mod_type) = ModType::try_from((extension.as_ref(), prefix.as_ref())) {
             mod_files.insert(entry_path.to_path_buf(), entry_mod_type);
         }
     }
@@ -334,10 +334,10 @@ fn get_mod_data(
 /// # Errors
 /// * [`InstallationError::FilesInteraction`] if a filename (installed or incoming) cannot be extracted
 fn check_for_conflicts<'a>(
-    mod_files: HashSet<&PathBuf>,
+    mod_files: impl IntoIterator<Item = &'a Path>,
     data: &'a Mods,
 ) -> Result<HashMap<PathBuf, String>, InstallationError> {
-    let mut installed: HashMap<&str, &'a String> = HashMap::new();
+    let mut installed: HashMap<String, &'a String> = HashMap::new();
 
     for m in &data.mods {
         for f in &m.files {
@@ -348,8 +348,8 @@ fn check_for_conflicts<'a>(
     let mut conflicts: HashMap<PathBuf, String> = HashMap::new();
     for f in mod_files {
         let name = get_filename_or_err(&f)?;
-        if let Some(mod_name) = installed.get(name) {
-            conflicts.insert(f.clone(), mod_name.to_string());
+        if let Some(mod_name) = installed.get(&name) {
+            conflicts.insert(f.to_path_buf(), mod_name.to_string());
         }
     }
 
@@ -365,7 +365,7 @@ fn check_for_conflicts<'a>(
 /// # Returns
 /// * `true` if a conflict warning must be produced (blocking installation)
 /// * `false` if files should be overwritten directly
-fn get_warning_necessity(warn_setting: ConflictResolution, overwrite_flag: bool) -> bool {
+fn get_warning_necessity(warn_setting: &ConflictResolution, overwrite_flag: bool) -> bool {
     match (warn_setting, overwrite_flag) {
         (ConflictResolution::Warn, false) => true,
         (ConflictResolution::Warn, true) => false,
@@ -417,7 +417,7 @@ fn should_install(data: &mut Mods, conflicting_files: &HashMap<PathBuf, String>,
 fn install(
     mod_files: &HashMap<PathBuf, ModType>,
     mod_name: &str,
-    game_path: &PathBuf,
+    game_path: &Path,
 ) -> Result<Vec<PathBuf>, InstallationError> {
     let mut copied_files = vec![];
 
@@ -426,7 +426,7 @@ fn install(
 
         let installation_folder = game_path.join(file.1.get_corresponding_folder(mod_name, prefix.as_ref()));
 
-        copied_files.push(copy_mod_file(file.0, installation_folder)?);
+        copied_files.push(copy_mod_file(file.0, installation_folder.as_path())?);
     }
 
     Ok(copied_files)
@@ -446,8 +446,8 @@ fn install(
 /// * [`InstallationError::FileManaging`] if directory creation or file copying fails
 /// * [`InstallationError::FilesInteraction`] if `mod_file`'s filename cannot be extracted
 fn copy_mod_file(
-    mod_file: &PathBuf,
-    destination_folder: PathBuf,
+    mod_file: &Path,
+    destination_folder: &Path,
 ) -> Result<PathBuf, InstallationError> {
     create_dir_all(&destination_folder)?;
 

@@ -16,7 +16,7 @@ use crate::data::paths::PATHS;
 use crate::utils::files::{expand_path, FilesInteractionError};
 use crate::utils::json::{JsonParsingError, load_json, save_json};
 
-use std::path::PathBuf;
+use std::path::{PathBuf};
 use std::collections::{HashMap, HashSet};
 use std::fmt::{self};
 
@@ -140,7 +140,7 @@ impl Mods {
         index: usize,
         new_files: Vec<PathBuf>,
     ) -> Result<(), DataInteractionError> {
-        self.mods[index].files = new_files;
+        self.mods[index].files = new_files.into_iter().collect();
         self.mods[index].enabled = !self.mods[index].enabled;
         Ok(save_json(&PATHS.data_file, &self)?)
     }
@@ -356,7 +356,7 @@ impl ModType {
     ///
     /// # Returns
     /// * A [`HashSet`] of string slices containing extensions (`"dll"`, `"dds"`, `"dtt"`, `"dat"`, `"usm"`, `"ini"`)
-    pub fn all_extensions() -> HashSet<&'static str> {
+    pub fn all_extensions() -> HashSet<String> {
         ModType::iter()
             .flat_map(|t| match t {
                 ModType::DLL => ["dll"].as_slice(),
@@ -367,7 +367,7 @@ impl ModType {
                 ModType::CutsceneReplacements => ["usm"].as_slice(),
                 ModType::ReshadePreset => ["ini"].as_slice(),
             })
-            .copied()
+            .map(|ext| ext.to_string())
             .collect()
     }
 }

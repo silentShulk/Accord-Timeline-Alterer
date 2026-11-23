@@ -17,7 +17,7 @@ use crate::data::mods::{Mods, DataInteractionError, Mod};
 use crate::data::settings::SortingOrder;
 
 use std::fs::{create_dir_all, rename};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use thiserror::Error;
 
@@ -45,16 +45,13 @@ use thiserror::Error;
 /// * [`ModManagingError::FolderCreation`] if the `.disabled/` directory could not be created (disabling only)
 /// * [`ModManagingError::Renaming`] if a file could not be moved
 pub fn toggle_mod(mod_name: &str, data: &mut Mods) -> Result<Mod, ModManagingError> {
-    let mod_to_toggle = data.get_mod_by_name(mod_name)?;
+    let (index, mod_to_toggle) = data.get_mod_by_name(mod_name)?;
 
-    let updated_files = match mod_to_toggle.1.enabled {
-        true => disable_files(mod_to_toggle.1.files)?,
-        false => enable_files(mod_to_toggle.1.files)?,
-    };
+    let updated_files = toggle_files(mod_to_toggle.files, mod_to_toggle.enabled)?;
 
-    data.switch_mod_state(mod_to_toggle.0, updated_files)?;
+    data.switch_mod_state(index, updated_files)?;
 
-    Ok(data.mods[mod_to_toggle.0].clone())
+    Ok(data.mods[index].clone())
 }
 
 /// Returns a copy of the mods vector sorted according to the requested [`SortingOrder`]
@@ -99,54 +96,38 @@ pub enum ModManagingError {
     FilesInteraction(#[from] FilesInteractionError),
 }
 
-/// Moves files from `.disabled/` subdirectories back up into their parent active folders
+/// Toggles files between the enabled folder and `.disabled/`
+///
+/// Files that are currently enabled are moved into `.disabled/`, and files that are
+/// currently disabled are moved back out into the game's asset folder.
 ///
 /// # Arguments
-/// * `files_to_enable` - Paths of disabled files to enable
+/// * `files` - Paths of the files to move
+/// * `currently_enabled` - Current state of the files (`true` if they are in the game's asset folder)
 ///
 /// # Returns
-/// * [`Ok`] -> List of updated active file paths
-/// * [`Err`] -> [`EnablingDisablingError`] if renaming fails
-fn enable_files(files_to_enable: Vec<PathBuf>) -> Result<Vec<PathBuf>, ModManagingError> {
-    let mut updated_files: Vec<PathBuf> = vec![];
+/// * [`Ok`] -> List of the files' new paths
+/// * [`Err`] -> [`ModManagingError`] if path extraction, folder creation or renaming fails
+fn toggle_files(
+    files: impl IntoIterator<Item = PathBuf>,
+    currently_enabled: bool,
+) -> Result<Vec<PathBuf>, ModManagingError> {
+    files
+        .into_iter()
+        .map(|file| {
+            // `get_toggled_folder` takes the *target* state, so flip the current one
+            let (filename, target_folder) = get_toggled_folder(!currently_enabled, &file)?;
 
-    for file in files_to_enable {
-        let (filename, enabled_folder) = get_toggled_folder(true, &file)?;
+            // No-op if the folder already exists (always the case when enabling)
+            create_dir_all(&target_folder)
+                .map_err(|er| ModManagingError::FolderCreation(target_folder.clone(), er))?;
 
-        let new_path = enabled_folder.join(filename);
-        rename(file, &new_path)?;
+            let new_path = target_folder.join(filename);
+            rename(file, &new_path)?;
 
-        updated_files.push(new_path);
-    }
-
-    Ok(updated_files)
-}
-
-/// Moves files from their active asset folders into adjacent `.disabled/` subdirectories
-///
-/// # Arguments
-/// * `files_to_disable` - Paths of active files to disable
-///
-/// # Returns
-/// * [`Ok`] -> List of updated disabled file paths
-/// * [`Err`] -> [`EnablingDisablingError`] if creating directories or renaming fails
-fn disable_files(files_to_disable: Vec<PathBuf>) -> Result<Vec<PathBuf>, ModManagingError> {
-    let mut updated_files: Vec<PathBuf> = vec![];
-
-    for file in files_to_disable {
-        let (filename, disabled_folder) = get_toggled_folder(false, &file)?;
-
-        create_dir_all(&disabled_folder).map_err(|er| {
-            ModManagingError::FolderCreation(disabled_folder.to_path_buf(), er)
-        })?;
-
-        let new_path = disabled_folder.join(filename);
-        rename(file, &new_path)?;
-
-        updated_files.push(new_path);
-    }
-
-    Ok(updated_files)
+            Ok(new_path)
+        })
+        .collect()
 }
 
 /// Determines the target directory and filename for enabling or disabling a file
@@ -160,8 +141,8 @@ fn disable_files(files_to_disable: Vec<PathBuf>) -> Result<Vec<PathBuf>, ModMana
 /// * [`Err`] -> [`ModManagingError`] if path component extraction fails
 fn get_toggled_folder<'a>(
     enabled: bool,
-    file: &'a PathBuf,
-) -> Result<(&'a str, PathBuf), ModManagingError> {
+    file: &'a Path,
+) -> Result<(String, PathBuf), ModManagingError> {
     let filename = get_filename_or_err(file)?;
     
     if enabled {

@@ -38,11 +38,11 @@ pub fn get_parent_or_err(path: &Path) -> Result<PathBuf, FilesInteractionError> 
 /// * [`Ok`] -> The filename as a `&str`
 /// * [`Err`] -> [`FilesInteractionError::NamelessPath`] if `path` has no filename component,
 ///   or [`FilesInteractionError::InvalidFileName`] if the filename contains invalid Unicode
-pub fn get_filename_or_err(path: &Path) -> Result<&str, FilesInteractionError> {
+pub fn get_filename_or_err(path: &Path) -> Result<String, FilesInteractionError> {
     let name = path.file_name().ok_or(FilesInteractionError::NamelessPath(path.to_path_buf()))?;
     let name_str = name.to_str().ok_or(FilesInteractionError::InvalidFileName(name.to_os_string()))?;
 
-    Ok(name_str)
+    Ok(name_str.to_string())
 }
 
 /// Returns the filename of `path` with its extension stripped, as a UTF-8 string slice
@@ -54,11 +54,11 @@ pub fn get_filename_or_err(path: &Path) -> Result<&str, FilesInteractionError> {
 /// * [`Ok`] -> The file stem as a `&str`
 /// * [`Err`] -> [`FilesInteractionError::StemlessPath`] if `path` has no filename component,
 ///   or [`FilesInteractionError::InvalidStem`] if the stem contains invalid Unicode
-pub fn get_filestem_or_err(path: &Path) -> Result<&str, FilesInteractionError> {
+pub fn get_filestem_or_err(path: &Path) -> Result<String, FilesInteractionError> {
     let stem = path.file_stem().ok_or(FilesInteractionError::StemlessPath(path.to_path_buf()))?;
     let stem_str = stem.to_str().ok_or(FilesInteractionError::InvalidStem(stem.to_os_string()))?;
 
-    Ok(stem_str)
+    Ok(stem_str.to_string())
 }
 
 /// Returns the extension of `path` as a UTF-8 string slice
@@ -70,11 +70,11 @@ pub fn get_filestem_or_err(path: &Path) -> Result<&str, FilesInteractionError> {
 /// * [`Ok`] -> The extension as a `&str`
 /// * [`Err`] -> [`FilesInteractionError::ExtensionlessPath`] if `path` has no extension,
 ///   or [`FilesInteractionError::InvalidExtension`] if the extension contains invalid Unicode
-pub fn get_extension_or_err(path: &Path) -> Result<&str, FilesInteractionError> {
+pub fn get_extension_or_err(path: &Path) -> Result<String, FilesInteractionError> {
     let extension = path.extension().ok_or(FilesInteractionError::ExtensionlessPath(path.to_path_buf()))?;
     let extension_str = extension.to_str().ok_or(FilesInteractionError::InvalidExtension(extension.to_os_string()))?;
 
-    Ok(extension_str)
+    Ok(extension_str.to_string())
 }
 
 /// Expands `~` and shell variables (e.g. `$HOME`) inside a path string
