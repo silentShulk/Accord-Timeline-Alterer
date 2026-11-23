@@ -25,6 +25,7 @@ use serde::{Deserialize, Serialize};
 
 /// All user-configurable settings for ATA
 #[derive(Serialize, Deserialize, Clone, Debug)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
     /// Visual layout theme applied to the UI
