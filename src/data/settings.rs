@@ -40,9 +40,11 @@ pub struct Settings {
     pub keep_extracted_folders: bool,
     /// Filesystem path where extracted temporary folders are stored
     #[serde(deserialize_with = "deserialize_expanded_path")]
+    #[cfg_attr(feature = "specta", specta(type = String))]
     pub extracted_folders_location: PathBuf,
     /// Absolute path to the game's installation folder
     #[serde(deserialize_with = "deserialize_expanded_path")]
+    #[cfg_attr(feature = "specta", specta(type = String))]
     pub game_path: PathBuf,
 
     /// Discord Rich Presence application ID; empty string means Rich Presence is disabled
