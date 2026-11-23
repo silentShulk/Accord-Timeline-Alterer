@@ -136,6 +136,7 @@ pub enum SettingsInteractionError {
 
 /// The color palette applied to the UI
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Default)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum Palette {
     /// Default palette, inspired by NieR: Automata
     #[default]
@@ -158,6 +159,7 @@ impl FromStr for Palette {
 
 /// The order in which installed mods are displayed in the list view
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Default)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum SortingOrder {
     /// Group mods by their [`crate::data::mods::ModType`] (default)
     #[default]
@@ -189,6 +191,7 @@ impl FromStr for SortingOrder {
 
 /// What ATA does when a mod file would overwrite a file already present in the game folder
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Default, Copy)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum ConflictResolution {
     /// Prompt the user to decide for each conflicting file (default)
     #[default]
