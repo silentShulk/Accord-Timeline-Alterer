@@ -327,7 +327,7 @@ impl ModType {
             ModType::Textures => &["dds"],
             ModType::PlayerModels | ModType::WeaponModels | ModType::WorldModels => &["dtt", "dat"],
             ModType::CutsceneReplacements => &["usm"],
-            ModType::ReshadePreset => &["ini", "fx", "fxh", "cfg"],
+            ModType::ReshadePreset => &["ini", "fx", "fxh", "cfg", "png"],
         }
     }
 
