@@ -352,22 +352,41 @@ impl ModType {
         }
     }
 
-    /// Returns a set of all file extensions recognized by ATA across all supported mod types
-    ///
-    /// # Returns
-    /// * A [`HashSet`] of string slices containing extensions (`"dll"`, `"dds"`, `"dtt"`, `"dat"`, `"usm"`, `"ini"`)
+    /// Single source of truth: extensions each type owns.
+    /// No `_` arm on purpose: new variant => compile error until listed here.
+    const fn extensions(&self) -> &'static [&'static str] {
+        match self {
+            ModType::DLL => &["dll"],
+            ModType::Textures => &["dds"],
+            ModType::PlayerModels | ModType::WeaponModels | ModType::WorldModels => &["dtt", "dat"],
+            ModType::CutsceneReplacements => &["usm"],
+            ModType::ReshadePreset => &["ini", "fx", "fxh", "cfg"],
+        }
+    }
+
+    /// Filename prefixes that tell apart types sharing an extension.
+    /// `None` = any prefix OK. Also exhaustive, same reason.
+    const fn prefixes(&self) -> Option<&'static [&'static str]> {
+        match self {
+            ModType::PlayerModels => Some(&["pl", "mi"]),
+            ModType::WeaponModels => Some(&["wp"]),
+            ModType::WorldModels => Some(&["bg"]),
+            ModType::DLL
+            | ModType::Textures
+            | ModType::CutsceneReplacements
+            | ModType::ReshadePreset => None,
+        }
+    }
+
+    fn matches(&self, extension: &str, prefix: &str) -> bool {
+        self.extensions().contains(&extension)
+            && self.prefixes().map_or(true, |p| p.contains(&prefix))
+    }
+
+    /// Derived from `extensions()`, can't drift from the classifier.
     pub fn all_extensions() -> HashSet<String> {
         ModType::iter()
-            .flat_map(|t| match t {
-                ModType::DLL => ["dll"].as_slice(),
-                ModType::Textures => ["dds"].as_slice(),
-                ModType::PlayerModels | ModType::WeaponModels | ModType::WorldModels => {
-                    ["dtt", "dat"].as_slice()
-                }
-                ModType::CutsceneReplacements => ["usm"].as_slice(),
-                ModType::ReshadePreset => ["ini"].as_slice(),
-            })
-            .map(|ext| ext.to_string())
+            .flat_map(|t| t.extensions().iter().map(|e| e.to_string()))
             .collect()
     }
 }
@@ -389,20 +408,10 @@ impl fmt::Display for ModType {
 impl TryFrom<(&str, &str)> for ModType {
     type Error = DataInteractionError;
 
-    fn try_from(file_description: (&str, &str)) -> Result<Self, DataInteractionError> {
-        match file_description {
-            ("dll", _) => Ok(ModType::DLL),
-            ("dds", _) => Ok(ModType::Textures),
-            ("dtt" | "dat", "pl") => Ok(ModType::PlayerModels),
-            ("dtt" | "dat", "mi") => Ok(ModType::PlayerModels),
-            ("dtt" | "dat", "wp") => Ok(ModType::WeaponModels),
-            ("dtt" | "dat", "bg") => Ok(ModType::WorldModels),
-            ("usm", _) => Ok(ModType::CutsceneReplacements),
-            ("fx", _) => Ok(ModType::ReshadePreset),
-            (ext, _) => Err(DataInteractionError::InvalidModTypeExtension(
-                ext.to_string(),
-            )),
-        }
+    fn try_from((extension, prefix): (&str, &str)) -> Result<Self, Self::Error> {
+        ModType::iter()
+            .find(|t| t.matches(extension, prefix))
+            .ok_or_else(|| DataInteractionError::InvalidModTypeExtension(extension.to_string()))
     }
 }
 
