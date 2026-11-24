@@ -295,23 +295,26 @@ fn get_mod_data(
         let current_entry = entry?;
         let entry_path = current_entry.path();
 
-        if current_entry.file_type().is_dir() {
-            continue;
-        }
+        if current_entry.file_type().is_dir() { continue; }
 
-        // Files without a usable extension can't be mod files, so skip them quietly
-        let Ok(extension) = get_extension_or_err(entry_path) else {
-            continue;
-        };
-        if !ModType::all_extensions().contains(&extension) {
-            continue;
-        }
+        let Ok(extension) = get_extension_or_err(entry_path) else { continue; };
+        if !ModType::all_extensions().contains(&extension) { continue; }
 
         let prefix: String = get_filename_or_err(entry_path)?.chars().take(2).collect();
 
         if let Ok(entry_mod_type) = ModType::try_from((extension.as_ref(), prefix.as_ref())) {
             mod_files.insert(entry_path.to_path_buf(), entry_mod_type);
         }
+    }
+    
+    let has_shader = mod_files
+        .keys()
+        .any(|path| get_extension_or_err(path).is_ok_and(|ext| ext.eq_ignore_ascii_case("fx")));
+    if !has_shader {
+        mod_files.retain(|path, mod_type| {
+            !(*mod_type == ModType::ReshadePreset
+                && get_extension_or_err(path).is_ok_and(|ext| ext.eq_ignore_ascii_case("png")))
+        });
     }
 
     if !mod_files.is_empty() {
@@ -422,9 +425,11 @@ fn install(
     let mut copied_files = vec![];
 
     for file in mod_files {
-        let prefix: String = get_filename_or_err(file.0)?.chars().take(2).collect();
+        let filename = get_filename_or_err(file.0)?;
+        let prefix: String = filename.chars().take(2).collect();
+        let extension = get_extension_or_err(file.0)?.to_ascii_lowercase();
 
-        let installation_folder = game_path.join(file.1.get_corresponding_folder(mod_name, prefix.as_ref()));
+        let installation_folder = game_path.join(file.1.get_corresponding_folder(mod_name, prefix.as_ref(), extension.as_ref()));
 
         copied_files.push(copy_mod_file(file.0, installation_folder.as_path())?);
     }

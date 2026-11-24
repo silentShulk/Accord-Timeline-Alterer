@@ -286,49 +286,16 @@ pub enum ModType {
 }
 
 impl ModType {
-    /// Returns the relative subfolder inside the game directory where this mod type's files live
-    ///
-    /// # Arguments
-    /// * `mod_name` - Name of the mod
-    /// * `prefix` - Two-character prefix extracted from the filename (e.g., `"pl"`, `"wp"`, `"bg"`)
-    ///
-    /// # Returns
-    /// * `wax/mods/<mod_name>` for textures
-    /// * `data/pl/` or `data/misctex/` for player models
-    /// * `data/wp/` or `data/misctex/` for weapon models
-    /// * `data/bg/` or `data/misctex/` for world models
-    /// * `data/movie/` for cutscene replacements
-    /// * empty path for reshade presets & DLL mods (game root)
-    pub fn get_corresponding_folder(&self, mod_name: &str, prefix: &str) -> PathBuf {
-        match self {
-            ModType::DLL => PathBuf::new(),
-            ModType::Textures => PathBuf::from("wax").join("mods").join(mod_name),
-            ModType::PlayerModels => {
-                if prefix == "pl" {
-                    PathBuf::from("data").join("pl")
-                } else {
-                    PathBuf::from("data").join("misctex")
-                }
-            }
-            ModType::WeaponModels => {
-                if prefix == "wp" {
-                    PathBuf::from("data").join("wp")
-                } else {
-                    PathBuf::from("data").join("misctex")
-                }
-            }
-            ModType::WorldModels => {
-                if prefix == "bg" {
-                    PathBuf::from("data").join("bg")
-                } else {
-                    PathBuf::from("data").join("misctex")
-                }
-            }
-            ModType::CutsceneReplacements => PathBuf::from("data").join("movie"),
-            ModType::ReshadePreset => PathBuf::new(),
-        }
-    }
-
+    const PRIORITY: [ModType; 7] = [
+        ModType::DLL,
+        ModType::PlayerModels,
+        ModType::WeaponModels,
+        ModType::WorldModels,
+        ModType::CutsceneReplacements,
+        ModType::Textures,
+        ModType::ReshadePreset,
+    ];
+    
     /// Returns a short ID for the [`ModType`], used as part of a mod's [`Mod::uid`]
     ///
     /// # Returns
@@ -389,6 +356,54 @@ impl ModType {
             .flat_map(|t| t.extensions().iter().map(|e| e.to_string()))
             .collect()
     }
+
+    /// Returns the relative subfolder inside the game directory where this mod type's files live
+    ///
+    /// # Arguments
+    /// * `mod_name` - Name of the mod
+    /// * `prefix` - Two-character prefix extracted from the filename (e.g., `"pl"`, `"wp"`, `"bg"`)
+    ///
+    /// # Returns
+    /// * `wax/mods/<mod_name>` for textures
+    /// * `data/pl/` or `data/misctex/` for player models
+    /// * `data/wp/` or `data/misctex/` for weapon models
+    /// * `data/bg/` or `data/misctex/` for world models
+    /// * `data/movie/` for cutscene replacements
+    /// * empty path for reshade presets & DLL mods (game root)
+    pub fn get_corresponding_folder(&self, mod_name: &str, prefix: &str, extension: &str) -> PathBuf {
+        match self {
+            ModType::DLL => PathBuf::new(),
+            ModType::Textures => PathBuf::from("wax").join("mods").join(mod_name),
+            ModType::PlayerModels => {
+                if prefix == "pl" {
+                    PathBuf::from("data").join("pl")
+                } else {
+                    PathBuf::from("data").join("misctex")
+                }
+            }
+            ModType::WeaponModels => {
+                if prefix == "wp" {
+                    PathBuf::from("data").join("wp")
+                } else {
+                    PathBuf::from("data").join("misctex")
+                }
+            }
+            ModType::WorldModels => {
+                if prefix == "bg" {
+                    PathBuf::from("data").join("bg")
+                } else {
+                    PathBuf::from("data").join("misctex")
+                }
+            }
+            ModType::CutsceneReplacements => PathBuf::from("data").join("movie"),
+            ModType::ReshadePreset => match extension {
+                "ini" => PathBuf::new(),
+                "fx" | "fxh" | "cfg" => PathBuf::from("reshade-shaders").join("Shaders"),
+                "png" => PathBuf::from("reshade-shaders").join("Textures"),
+                _ => PathBuf::new(),
+            },
+        }
+    }
 }
 
 impl fmt::Display for ModType {
@@ -419,22 +434,9 @@ impl TryFrom<HashSet<ModType>> for ModType {
     type Error = DataInteractionError;
 
     fn try_from(mod_types: HashSet<ModType>) -> Result<Self, DataInteractionError> {
-        if mod_types.len() == 1 {
-            Ok(mod_types.into_iter().next().unwrap())
-        } else if mod_types.contains(&ModType::DLL) {
-            Ok(ModType::DLL)
-        } else if mod_types.contains(&ModType::PlayerModels) {
-            Ok(ModType::PlayerModels)
-        } else if mod_types.contains(&ModType::WeaponModels) {
-            Ok(ModType::WeaponModels)
-        } else if mod_types.contains(&ModType::WorldModels) {
-            Ok(ModType::WorldModels)
-        } else if mod_types.contains(&ModType::CutsceneReplacements) {
-            Ok(ModType::CutsceneReplacements)
-        } else if mod_types.contains(&ModType::ReshadePreset) {
-            Ok(ModType::ReshadePreset)
-        } else {
-            Err(DataInteractionError::UnclearModType)
-        }
+        ModType::PRIORITY
+            .into_iter()
+            .find(|t| mod_types.contains(t))
+            .ok_or(DataInteractionError::UnclearModType)
     }
 }
