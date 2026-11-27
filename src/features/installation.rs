@@ -21,7 +21,7 @@ use walkdir::WalkDir;
 use zip;
 use sevenz_rust;
 use unrar;
-use chrono::Utc;
+use chrono::{Local, SubsecRound};
 
 
 
@@ -89,7 +89,7 @@ pub fn install_mod(
                 installed_files,
                 true,
                 ModType::try_from(mod_data.into_values().collect::<HashSet<_>>())?,
-                Utc::now(),
+                Local::now().trunc_subsecs(0),
             );
 
             mods.save_new_mod(&installed_mod)?;

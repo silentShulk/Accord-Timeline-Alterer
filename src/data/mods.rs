@@ -22,7 +22,7 @@ use std::fmt::{self};
 
 use thiserror::Error;
 use serde::{Deserialize, Serialize};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Local};
 use strum::{EnumIter, IntoEnumIterator};
 
 
@@ -200,7 +200,7 @@ pub struct Mod {
     /// Categorises what kind of assets the mod replaces
     pub mod_type: ModType,
     /// UTC timestamp of when the mod was installed
-    pub install_date: DateTime<Utc>,
+    pub install_date: DateTime<Local>,
     /// Unique identifier derived from the mod's name, type, and install date
     pub uid: String,
 }
@@ -222,7 +222,7 @@ impl Mod {
         files: Vec<PathBuf>,
         enabled: bool,
         mod_type: ModType,
-        install_date: DateTime<Utc>,
+        install_date: DateTime<Local>,
     ) -> Self {
         Self {
             uid: Self::get_uid(&name, &mod_type, &install_date),
@@ -247,7 +247,7 @@ impl Mod {
     ///
     /// # Returns
     /// * A [`String`] containing the generated UID
-    fn get_uid(mod_name: &str, mod_type: &ModType, install_date: &DateTime<Utc>) -> String {
+    fn get_uid(mod_name: &str, mod_type: &ModType, install_date: &DateTime<Local>) -> String {
         let name: String = mod_name.chars().take(4).collect();
         let m_type = mod_type.get_id();
         let date = install_date.format("%d/%m/%Y|%H:%M").to_string();
